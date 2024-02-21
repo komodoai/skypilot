@@ -5,6 +5,7 @@ from typing import Optional
 
 from sky import exceptions
 from sky.utils import command_runner
+from sky.constants import SKY_HOME
 
 # Values used to construct mounting commands
 _STAT_CACHE_TTL = '5s'

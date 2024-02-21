@@ -19,6 +19,7 @@ from sky import sky_logging
 from sky import skypilot_config
 from sky.adaptors import cloudflare
 from sky.clouds import gcp
+from sky.constants import SKY_HOME
 from sky.data import data_utils
 from sky.data import storage as storage_lib
 from sky.jobs import constants as managed_job_constants
@@ -40,7 +41,7 @@ logger = sky_logging.init_logger(__name__)
 # controller resources spec.
 CONTROLLER_RESOURCES_NOT_VALID_MESSAGE = (
     '{controller_type} controller resources is not valid, please check '
-    '~/.sky/config.yaml file and make sure '
+    f'{SKY_HOME}/config.yaml file and make sure '
     '{controller_type}.controller.resources is a valid resources spec. '
     'Details:\n  {err}')
 
