@@ -4,6 +4,7 @@ from typing import List, Tuple
 from packaging import version
 
 import sky
+from sky.constants import SKY_HOME
 
 SKY_LOGS_DIRECTORY = '~/sky_logs'
 SKY_REMOTE_WORKDIR = '~/sky_workdir'
@@ -81,7 +82,7 @@ SKYLET_VERSION = '8'
 # change for the job_lib or log_lib, we need to bump this version, so that the
 # user can be notified to update their SkyPilot version on the remote cluster.
 SKYLET_LIB_VERSION = 1
-SKYLET_VERSION_FILE = '~/.sky/skylet_version'
+SKYLET_VERSION_FILE = f'{SKY_HOME}/skylet_version'
 
 # `sky jobs dashboard`-related
 #
