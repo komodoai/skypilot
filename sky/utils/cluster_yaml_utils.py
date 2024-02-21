@@ -2,6 +2,8 @@
 
 import re
 
+from sky.constants import SKY_HOME
+
 # The cluster yaml used to create the current cluster where the module is
 # called.
 SKY_CLUSTER_YAML_REMOTE_PATH = '~/.sky/sky_ray.yml'

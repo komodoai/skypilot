@@ -10,6 +10,7 @@ from sky import sky_logging
 from sky import skypilot_config
 from sky.adaptors import kubernetes
 from sky.clouds import service_catalog
+from sky.constants import SKY_HOME
 from sky.provision.kubernetes import network_utils
 from sky.provision.kubernetes import utils as kubernetes_utils
 from sky.utils import common_utils
@@ -38,6 +39,18 @@ class Kubernetes(clouds.Cloud):
 
     SKY_SSH_KEY_SECRET_NAME = 'sky-ssh-keys'
     SKY_SSH_JUMP_NAME = 'sky-ssh-jump-pod'
+    PORT_FORWARD_PROXY_CMD_TEMPLATE = \
+        'kubernetes-port-forward-proxy-command.sh.j2'
+    PORT_FORWARD_PROXY_CMD_PATH = f'{SKY_HOME}/port-forward-proxy-cmd.sh'
+    # Timeout for resource provisioning. This timeout determines how long to
+    # wait for pod to be in pending status before giving up.
+    # Larger timeout may be required for autoscaling clusters, since autoscaler
+    # may take some time to provision new nodes.
+    # Note that this timeout includes time taken by the Kubernetes scheduler
+    # itself, which can be upto 2-3 seconds.
+    # For non-autoscaling clusters, we conservatively set this to 10s.
+    timeout = skypilot_config.get_nested(['kubernetes', 'provision_timeout'],
+                                         10)
 
     # Limit the length of the cluster name to avoid exceeding the limit of 63
     # characters for Kubernetes resources. We limit to 42 characters (63-21) to
