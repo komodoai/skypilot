@@ -152,9 +152,9 @@ class SkyServeController:
         threading.Thread(target=self._run_autoscaler).start()
 
         logger.info('SkyServe Controller started on '
-                    f'http://{self._host}:{self._port}')
+                    f'http://0.0.0.0:{self._port}')
 
-        uvicorn.run(self._app, host={self._host}, port=self._port)
+        uvicorn.run(self._app, host='0.0.0.0', port=self._port)
 
 
 # TODO(tian): Probably we should support service that will stop the VM in
