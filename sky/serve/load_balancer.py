@@ -1,5 +1,6 @@
 """LoadBalancer: Distribute any incoming request to all ready replicas."""
 import asyncio
+import os
 import logging
 import threading
 from typing import Dict, Union
@@ -17,6 +18,8 @@ from sky.serve import serve_utils
 from sky.utils import common_utils
 
 logger = sky_logging.init_logger(__name__)
+
+KOMODO_SERVICE_ID = os.getenv("KOMODO_SERVICE_ID", None)
 
 
 class SkyServeLoadBalancer:
@@ -170,9 +173,7 @@ class SkyServeLoadBalancer:
                     # 503 means that the server is currently
                     # unable to handle the incoming requests.
                     status_code=503,
-                    detail='No ready replicas. '
-                    'Use "sky serve status [SERVICE_NAME]" '
-                    'to check the replica status.')
+                    detail='No ready replicas.')
             else:
                 response_or_exception = await self._proxy_request_to(
                     ready_replica_url, request)
@@ -195,14 +196,18 @@ class SkyServeLoadBalancer:
                     # 500 means internal server error.
                     status_code=500,
                     detail=f'Max retries {constants.LB_MAX_RETRY} exceeded. '
-                    f'Last error encountered: {exception}. Please use '
-                    '"sky serve logs [SERVICE_NAME] --load-balancer" '
-                    'for more information.')
+                    f'Last error encountered: {exception}.')
             current_backoff = backoff.current_backoff()
             logger.error(f'Retry in {current_backoff} seconds.')
             await asyncio.sleep(current_backoff)
 
+    async def _health_check_handler(self):
+        return fastapi.responses.Response(status_code=200)
+
     def run(self):
+        self._app.add_api_route('/komodo-health-check',
+                                self._health_check_handler,
+                                methods=['GET'])
         self._app.add_api_route('/{path:path}',
                                 self._proxy_with_retries,
                                 methods=['GET', 'POST', 'PUT', 'DELETE'])
