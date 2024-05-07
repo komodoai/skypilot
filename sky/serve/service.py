@@ -143,18 +143,18 @@ def _start(service_name: str, tmp_task_yaml: str, job_id: int):
         cleanup_storage(tmp_task_yaml)
         with ux_utils.print_exception_no_traceback():
             raise RuntimeError('Max number of services reached.')
-    success = serve_state.add_service(
-        service_name,
-        controller_job_id=job_id,
-        policy=service_spec.autoscaling_policy_str(),
-        requested_resources_str=backend_utils.get_task_resources_str(task),
-        status=serve_state.ServiceStatus.CONTROLLER_INIT)
-    # Directly throw an error here. See sky/serve/api.py::up
-    # for more details.
-    if not success:
-        cleanup_storage(tmp_task_yaml)
-        with ux_utils.print_exception_no_traceback():
-            raise ValueError(f'Service {service_name} already exists.')
+    # success = serve_state.add_service(
+    #     service_name,
+    #     controller_job_id=job_id,
+    #     policy=service_spec.autoscaling_policy_str(),
+    #     requested_resources_str=backend_utils.get_task_resources_str(task),
+    #     status=serve_state.ServiceStatus.CONTROLLER_INIT)
+    # # Directly throw an error here. See sky/serve/api.py::up
+    # # for more details.
+    # if not success:
+    #     cleanup_storage(tmp_task_yaml)
+    #     with ux_utils.print_exception_no_traceback():
+    #         raise ValueError(f'Service {service_name} already exists.')
 
     # Create the service working directory.
     service_dir = os.path.expanduser(

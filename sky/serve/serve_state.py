@@ -17,57 +17,62 @@ if typing.TYPE_CHECKING:
     from sky.serve import replica_managers
     from sky.serve import service_spec
 
-_DB_PATH = pathlib.Path(constants.SKYSERVE_METADATA_DIR) / 'services.db'
-_DB_PATH = _DB_PATH.expanduser().absolute()
-_DB_PATH.parents[0].mkdir(parents=True, exist_ok=True)
-_DB_PATH = str(_DB_PATH)
+from sqlalchemy import create_engine
+import os
+
+engine = create_engine(os.environ['DATABASE_URL'], future=True, pool_pre_ping=True)
+
+# _DB_PATH = pathlib.Path(constants.SKYSERVE_METADATA_DIR) / 'services.db'
+# _DB_PATH = _DB_PATH.expanduser().absolute()
+# _DB_PATH.parents[0].mkdir(parents=True, exist_ok=True)
+# _DB_PATH = str(_DB_PATH)
 
 
-def create_table(cursor: 'sqlite3.Cursor', conn: 'sqlite3.Connection') -> None:
-    """Creates the service and replica tables if they do not exist."""
+# def create_table(cursor: 'sqlite3.Cursor', conn: 'sqlite3.Connection') -> None:
+#     """Creates the service and replica tables if they do not exist."""
 
-    # auto_restart column is deprecated.
-    cursor.execute("""\
-        CREATE TABLE IF NOT EXISTS services (
-        name TEXT PRIMARY KEY,
-        controller_job_id INTEGER DEFAULT NULL,
-        controller_port INTEGER DEFAULT NULL,
-        load_balancer_port INTEGER DEFAULT NULL,
-        status TEXT,
-        uptime INTEGER DEFAULT NULL,
-        policy TEXT DEFAULT NULL,
-        auto_restart INTEGER DEFAULT NULL,
-        requested_resources BLOB DEFAULT NULL)""")
-    cursor.execute("""\
-        CREATE TABLE IF NOT EXISTS replicas (
-        service_name TEXT,
-        replica_id INTEGER,
-        replica_info BLOB,
-        PRIMARY KEY (service_name, replica_id))""")
-    cursor.execute("""\
-        CREATE TABLE IF NOT EXISTS version_specs (
-        version INTEGER, 
-        service_name TEXT,
-        spec BLOB,
-        PRIMARY KEY (service_name, version))""")
-    conn.commit()
+#     # auto_restart column is deprecated.
+#     cursor.execute("""\
+#         CREATE TABLE IF NOT EXISTS services (
+#         name TEXT PRIMARY KEY,
+#         controller_job_id INTEGER DEFAULT NULL,
+#         controller_port INTEGER DEFAULT NULL,
+#         load_balancer_port INTEGER DEFAULT NULL,
+#         status TEXT,
+#         uptime INTEGER DEFAULT NULL,
+#         policy TEXT DEFAULT NULL,
+#         auto_restart INTEGER DEFAULT NULL,
+#         requested_resources BLOB DEFAULT NULL)""")
+#     cursor.execute("""\
+#         CREATE TABLE IF NOT EXISTS replicas (
+#         service_name TEXT,
+#         replica_id INTEGER,
+#         replica_info BLOB,
+#         PRIMARY KEY (service_name, replica_id))""")
+#     cursor.execute("""\
+#         CREATE TABLE IF NOT EXISTS version_specs (
+#         version INTEGER, 
+#         service_name TEXT,
+#         spec BLOB,
+#         PRIMARY KEY (service_name, version))""")
+#     conn.commit()
 
 
-_DB = db_utils.SQLiteConn(_DB_PATH, create_table)
-# Backward compatibility.
-db_utils.add_column_to_table(_DB.cursor, _DB.conn, 'services',
-                             'requested_resources_str', 'TEXT')
-# Deprecated: switched to `active_versions` below for the version considered
-# active by the load balancer. The authscaler/replica_manager version can be
-# found in the version_specs table.
-db_utils.add_column_to_table(_DB.cursor, _DB.conn, 'services',
-                             'current_version',
-                             f'INTEGER DEFAULT {constants.INITIAL_VERSION}')
-# The versions that is activated for the service. This is a list of integers in
-# json format.
-db_utils.add_column_to_table(_DB.cursor, _DB.conn, 'services',
-                             'active_versions',
-                             f'TEXT DEFAULT {json.dumps([])!r}')
+# _DB = db_utils.SQLiteConn(_DB_PATH, create_table)
+# # Backward compatibility.
+# db_utils.add_column_to_table(_DB.cursor, _DB.conn, 'services',
+#                              'requested_resources_str', 'TEXT')
+# # Deprecated: switched to `active_versions` below for the version considered
+# # active by the load balancer. The authscaler/replica_manager version can be
+# # found in the version_specs table.
+# db_utils.add_column_to_table(_DB.cursor, _DB.conn, 'services',
+#                              'current_version',
+#                              f'INTEGER DEFAULT {constants.INITIAL_VERSION}')
+# # The versions that is activated for the service. This is a list of integers in
+# # json format.
+# db_utils.add_column_to_table(_DB.cursor, _DB.conn, 'services',
+#                              'active_versions',
+#                              f'TEXT DEFAULT {json.dumps([])!r}')
 _UNIQUE_CONSTRAINT_FAILED_ERROR_MSG = 'UNIQUE constraint failed: services.name'
 
 
@@ -231,6 +236,17 @@ _SERVICE_STATUS_TO_COLOR = {
     ServiceStatus.NO_REPLICA: colorama.Fore.MAGENTA,
 }
 
+def _get_user_id():
+    user_id = os.environ['KOMODO_USER_ID']
+    return user_id
+
+def _parse_name_values(full_name: str):
+    parts = name.split('_')
+    service_id = parts[0]
+    name = '_'.join(parts[1:])
+
+    return service_id, name
+
 
 def add_service(name: str, controller_job_id: int, policy: str,
                 requested_resources_str: str, status: ServiceStatus) -> bool:
@@ -240,15 +256,17 @@ def add_service(name: str, controller_job_id: int, policy: str,
         True if the service is added successfully, False if the service already
         exists.
     """
+    user_id = _get_user_id()
+    service_id, service_name = _parse_name_values(name)
     try:
-        with db_utils.safe_cursor(_DB_PATH) as cursor:
+        with engine.connect() as cursor:
             cursor.execute(
                 """\
                 INSERT INTO services
-                (name, controller_job_id, status, policy,
-                requested_resources_str)
+                (user_id, id, name, controller_job_id, status, policy,
+                resources)
                 VALUES (?, ?, ?, ?, ?)""",
-                (name, controller_job_id, status.value, policy,
+                (user_id, service_id, service_name, controller_job_id, status.value, policy,
                  requested_resources_str))
 
     except sqlite3.IntegrityError as e:
@@ -260,18 +278,20 @@ def add_service(name: str, controller_job_id: int, policy: str,
 
 def remove_service(service_name: str) -> None:
     """Removes a service from the database."""
-    with db_utils.safe_cursor(_DB_PATH) as cursor:
+    service_id, service_name = _parse_name_values(service_name)
+    with engine.connect() as cursor:
         cursor.execute("""\
-            DELETE FROM services WHERE name=(?)""", (service_name,))
+            DELETE FROM services WHERE id=(?)""", (service_id,))
 
 
 def set_service_uptime(service_name: str, uptime: int) -> None:
     """Sets the uptime of a service."""
-    with db_utils.safe_cursor(_DB_PATH) as cursor:
+    service_id, service_name = _parse_name_values(service_name)
+    with engine.connect() as cursor:
         cursor.execute(
             """\
             UPDATE services SET
-            uptime=(?) WHERE name=(?)""", (uptime, service_name))
+            uptime=(?) WHERE id=(?)""", (uptime, service_id))
 
 
 def set_service_status_and_active_versions(
@@ -279,45 +299,49 @@ def set_service_status_and_active_versions(
         status: ServiceStatus,
         active_versions: Optional[List[int]] = None) -> None:
     """Sets the service status."""
+    service_id, service_name = _parse_name_values(service_name)
     vars_to_set = 'status=(?)'
-    values: Tuple[str, ...] = (status.value, service_name)
+    values: Tuple[str, ...] = (status.value, service_id)
     if active_versions is not None:
         vars_to_set = 'status=(?), active_versions=(?)'
         values = (status.value, json.dumps(active_versions), service_name)
-    with db_utils.safe_cursor(_DB_PATH) as cursor:
+    with engine.connect() as cursor:
         cursor.execute(
             f"""\
             UPDATE services SET
-            {vars_to_set} WHERE name=(?)""", values)
+            {vars_to_set} WHERE id=(?)""", values)
 
 
 def set_service_controller_port(service_name: str,
                                 controller_port: int) -> None:
     """Sets the controller port of a service."""
-    with db_utils.safe_cursor(_DB_PATH) as cursor:
+    service_id, service_name = _parse_name_values(service_name)
+    with engine.connect() as cursor:
         cursor.execute(
             """\
             UPDATE services SET
-            controller_port=(?) WHERE name=(?)""",
-            (controller_port, service_name))
+            controller_port=(?) WHERE id=(?)""",
+            (controller_port, service_id))
 
 
 def set_service_load_balancer_port(service_name: str,
                                    load_balancer_port: int) -> None:
     """Sets the load balancer port of a service."""
-    with db_utils.safe_cursor(_DB_PATH) as cursor:
+    service_id, service_name = _parse_name_values(service_name)
+    with engine.connect() as cursor:
         cursor.execute(
             """\
             UPDATE services SET
-            load_balancer_port=(?) WHERE name=(?)""",
-            (load_balancer_port, service_name))
+            load_balancer_port=(?) WHERE id=(?)""",
+            (load_balancer_port, service_id))
 
 
 def _get_service_from_row(row) -> Dict[str, Any]:
-    (current_version, name, controller_job_id, controller_port,
-     load_balancer_port, status, uptime, policy, _, requested_resources,
-     requested_resources_str, _, active_versions) = row[:13]
+    (current_version, service_id, name, controller_job_id, controller_port,
+     load_balancer_port, status, uptime, min_replicas, max_replicas, resources, active_versions) = row[:13]
+    policy = f'Min/max replicas: ({min_replicas, max_replicas})'
     return {
+        'id': service_id,
         'name': name,
         'controller_job_id': controller_job_id,
         'controller_port': controller_port,
@@ -332,22 +356,19 @@ def _get_service_from_row(row) -> Dict[str, Any]:
         # The versions that is active for the load balancer. This is a list of
         # integers in json format. This is mainly for display purpose.
         'active_versions': json.loads(active_versions),
-        # TODO(tian): Backward compatibility.
-        # Remove after 2 minor release, 0.6.0.
-        'requested_resources': pickle.loads(requested_resources)
-                               if requested_resources is not None else None,
-        'requested_resources_str': requested_resources_str,
+        'resources': resources,
     }
 
 
 def get_services() -> List[Dict[str, Any]]:
     """Get all existing service records."""
-    with db_utils.safe_cursor(_DB_PATH) as cursor:
-        rows = cursor.execute('SELECT v.max_version, s.* FROM services s '
+    user_id = _get_user_id()
+    with engine.connect() as cursor:
+        rows = cursor.execute('SELECT v.max_version, s.id, s.name, s.controller_job_id, s.controller_port, s.load_balancer_port, s.status, s.uptime, s.min_replicas, s.max_replicas, s.resources, s.active_versions FROM services s '
                               'JOIN ('
-                              'SELECT service_name, MAX(version) as max_version'
-                              ' FROM version_specs GROUP BY service_name) v '
-                              'ON s.name=v.service_name').fetchall()
+                              'SELECT service_id, MAX(version) as max_version'
+                              ' FROM version_specs GROUP BY service_id) v '
+                              'ON s.id=v.service_id WHERE s.user_id=(?)', (user_id,)).fetchall()
     records = []
     for row in rows:
         records.append(_get_service_from_row(row))
@@ -356,14 +377,15 @@ def get_services() -> List[Dict[str, Any]]:
 
 def get_service_from_name(service_name: str) -> Optional[Dict[str, Any]]:
     """Get all existing service records."""
-    with db_utils.safe_cursor(_DB_PATH) as cursor:
+    service_id, service_name = _parse_name_values(service_name)
+    with engine.connect() as cursor:
         rows = cursor.execute(
-            'SELECT v.max_version, s.* FROM services s '
+            'SELECT v.max_version, s.id, s.name, s.controller_job_id, s.controller_port, s.load_balancer_port, s.status, s.uptime, s.min_replicas, s.max_replicas, s.resources, s.active_versions FROM services s '
             'JOIN ('
-            'SELECT service_name, MAX(version) as max_version '
-            'FROM version_specs WHERE service_name=(?)) v '
-            'ON s.name=v.service_name WHERE name=(?)',
-            (service_name, service_name)).fetchall()
+            'SELECT service_id, MAX(version) as max_version '
+            'FROM version_specs WHERE service_id=(?)) v '
+            'ON s.id=v.service_id WHERE id=(?)',
+            (service_id, service_id)).fetchall()
     for row in rows:
         return _get_service_from_row(row)
     return None
@@ -371,11 +393,12 @@ def get_service_from_name(service_name: str) -> Optional[Dict[str, Any]]:
 
 def get_service_versions(service_name: str) -> List[int]:
     """Gets all versions of a service."""
-    with db_utils.safe_cursor(_DB_PATH) as cursor:
+    service_id, service_name = _parse_name_values(service_name)
+    with engine.connect() as cursor:
         rows = cursor.execute(
             """\
             SELECT DISTINCT version FROM version_specs
-            WHERE service_name=(?)""", (service_name,)).fetchall()
+            WHERE service_id=(?)""", (service_id,)).fetchall()
     return [row[0] for row in rows]
 
 
@@ -390,16 +413,17 @@ def get_glob_service_names(
     Returns:
         A list of non-duplicated service names.
     """
-    with db_utils.safe_cursor(_DB_PATH) as cursor:
+    user_id = _get_user_id()
+    with engine.connect() as cursor:
         if service_names is None:
-            rows = cursor.execute('SELECT name FROM services').fetchall()
+            rows = cursor.execute('SELECT id,name FROM services WHERE user_id=(?)', (user_id,)).fetchall()
         else:
             rows = []
             for service_name in service_names:
                 rows.extend(
                     cursor.execute(
-                        'SELECT name FROM services WHERE name GLOB (?)',
-                        (service_name,)).fetchall())
+                        'SELECT name FROM services WHERE name LIKE (?) AND user_id = (?)',
+                        (f'*_{service_name}', user_id)).fetchall())
     return list({row[0] for row in rows})
 
 
@@ -407,35 +431,38 @@ def get_glob_service_names(
 def add_or_update_replica(service_name: str, replica_id: int,
                           replica_info: 'replica_managers.ReplicaInfo') -> None:
     """Adds a replica to the database."""
-    with db_utils.safe_cursor(_DB_PATH) as cursor:
+    service_id, service_name = _parse_name_values(service_name)
+    with engine.connect() as cursor:
         cursor.execute(
             """\
             INSERT OR REPLACE INTO replicas
-            (service_name, replica_id, replica_info)
+            (service_id, replica_id, replica_info)
             VALUES (?, ?, ?)""",
-            (service_name, replica_id, pickle.dumps(replica_info)))
+            (service_id, replica_id, pickle.dumps(replica_info)))
 
 
 def remove_replica(service_name: str, replica_id: int) -> None:
     """Removes a replica from the database."""
-    with db_utils.safe_cursor(_DB_PATH) as cursor:
+    service_id, service_name = _parse_name_values(service_name)
+    with engine.connect() as cursor:
         cursor.execute(
             """\
             DELETE FROM replicas
-            WHERE service_name=(?)
-            AND replica_id=(?)""", (service_name, replica_id))
+            WHERE service_id=(?)
+            AND replica_id=(?)""", (service_id, replica_id))
 
 
 def get_replica_info_from_id(
         service_name: str,
         replica_id: int) -> Optional['replica_managers.ReplicaInfo']:
     """Gets a replica info from the database."""
-    with db_utils.safe_cursor(_DB_PATH) as cursor:
+    service_id, service_name = _parse_name_values(service_name)
+    with engine.connect() as cursor:
         rows = cursor.execute(
             """\
             SELECT replica_info FROM replicas
-            WHERE service_name=(?)
-            AND replica_id=(?)""", (service_name, replica_id)).fetchall()
+            WHERE service_id=(?)
+            AND replica_id=(?)""", (service_id, replica_id)).fetchall()
     for row in rows:
         return pickle.loads(row[0])
     return None
@@ -444,18 +471,20 @@ def get_replica_info_from_id(
 def get_replica_infos(
         service_name: str) -> List['replica_managers.ReplicaInfo']:
     """Gets all replica infos of a service."""
-    with db_utils.safe_cursor(_DB_PATH) as cursor:
+    service_id, service_name = _parse_name_values(service_name)
+    with engine.connect() as cursor:
         rows = cursor.execute(
             """\
             SELECT replica_info FROM replicas
-            WHERE service_name=(?)""", (service_name,)).fetchall()
+            WHERE service_id=(?)""", (service_id,)).fetchall()
     return [pickle.loads(row[0]) for row in rows]
 
 
 def total_number_provisioning_replicas() -> int:
     """Returns the total number of provisioning replicas."""
-    with db_utils.safe_cursor(_DB_PATH) as cursor:
-        rows = cursor.execute('SELECT replica_info FROM replicas').fetchall()
+    user_id = _get_user_id()
+    with engine.connect() as cursor:
+        rows = cursor.execute('SELECT r.replica_info FROM replicas r JOIN (SELECT * FROM services WHERE user_id = (?)) s ON s.id=r.service_id', (user_id,)).fetchall()
     provisioning_count = 0
     for row in rows:
         replica_info: 'replica_managers.ReplicaInfo' = pickle.loads(row[0])
@@ -467,17 +496,17 @@ def total_number_provisioning_replicas() -> int:
 # === Version functions ===
 def add_version(service_name: str) -> int:
     """Adds a version to the database."""
-
-    with db_utils.safe_cursor(_DB_PATH) as cursor:
+    service_id, service_name = _parse_name_values(service_name)
+    with engine.connect() as cursor:
         cursor.execute(
             """\
             INSERT INTO version_specs
-            (version, service_name, spec)
+            (version, service_id, spec)
             VALUES (
                 (SELECT COALESCE(MAX(version), 0) + 1 FROM
-                version_specs WHERE service_name = ?), ?, ?)
+                version_specs WHERE service_id = ?), ?, ?)
             RETURNING version""",
-            (service_name, service_name, pickle.dumps(None)))
+            (service_id, service_id, pickle.dumps(None)))
 
         inserted_version = cursor.fetchone()[0]
 
@@ -486,32 +515,35 @@ def add_version(service_name: str) -> int:
 
 def add_or_update_version(service_name: str, version: int,
                           spec: 'service_spec.SkyServiceSpec') -> None:
-    with db_utils.safe_cursor(_DB_PATH) as cursor:
+    service_id, service_name = _parse_name_values(service_name)
+    with engine.connect() as cursor:
         cursor.execute(
             """\
         INSERT or REPLACE INTO version_specs
-        (service_name, version, spec)
-        VALUES (?, ?, ?)""", (service_name, version, pickle.dumps(spec)))
+        (service_id, version, spec)
+        VALUES (?, ?, ?)""", (service_id, version, pickle.dumps(spec)))
 
 
 def remove_service_versions(service_name: str) -> None:
     """Removes a replica from the database."""
-    with db_utils.safe_cursor(_DB_PATH) as cursor:
+    service_id, service_name = _parse_name_values(service_name)
+    with engine.connect() as cursor:
         cursor.execute(
             """\
             DELETE FROM version_specs
-            WHERE service_name=(?)""", (service_name,))
+            WHERE service_id=(?)""", (service_id,))
 
 
 def get_spec(service_name: str,
              version: int) -> Optional['service_spec.SkyServiceSpec']:
     """Gets spec from the database."""
-    with db_utils.safe_cursor(_DB_PATH) as cursor:
+    service_id, service_name = _parse_name_values(service_name)
+    with engine.connect() as cursor:
         rows = cursor.execute(
             """\
             SELECT spec FROM version_specs
-            WHERE service_name=(?)
-            AND version=(?)""", (service_name, version)).fetchall()
+            WHERE service_id=(?)
+            AND version=(?)""", (service_id, version)).fetchall()
     for row in rows:
         return pickle.loads(row[0])
     return None
@@ -519,9 +551,10 @@ def get_spec(service_name: str,
 
 def delete_version(service_name: str, version: int) -> None:
     """Deletes a version from the database."""
-    with db_utils.safe_cursor(_DB_PATH) as cursor:
+    service_id, service_name = _parse_name_values(service_name)
+    with engine.connect() as cursor:
         cursor.execute(
             """\
             DELETE FROM version_specs
-            WHERE service_name=(?)
-            AND version=(?)""", (service_name, version))
+            WHERE service_id=(?)
+            AND version=(?)""", (service_id, version))
