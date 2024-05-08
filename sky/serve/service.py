@@ -249,7 +249,7 @@ if __name__ == '__main__':
                         required=True)
     parser.add_argument('--job-id',
                         required=True,
-                        type=int,
+                        type=str,
                         help='Job id for the service job.')
     args = parser.parse_args()
     # We start process with 'spawn', because 'fork' could result in weird

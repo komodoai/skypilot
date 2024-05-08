@@ -447,6 +447,7 @@ class ReplicaInfo:
             'status': self.status,
             'version': self.version,
             'is_spot': self.is_spot,
+            'port': self.replica_port,
             'launched_at': (cluster_record['launched_at']
                             if cluster_record is not None else None),
         }
