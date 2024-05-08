@@ -245,6 +245,31 @@ class ReplicaStatusProperty:
     # The replica's spot instance was preempted.
     preempted: bool = False
 
+    def to_dict(self):
+        return {
+            'sky_launch_status': self.sky_launch_status.value if self.sky_launch_status else None,
+            'user_app_failed': self.user_app_failed,
+            'service_ready_now': self.service_ready_now,
+            'first_ready_time': self.first_ready_time,
+            'sky_down_status': self.sky_down_status.value if self.sky_down_status else None,
+            'is_scale_down': self.is_scale_down,
+            'preempted': self.preempted,
+        }
+
+    @classmethod
+    def from_dict(cls, d):
+        sky_launch_status = d['sky_launch_status']
+        if sky_launch_status:
+            sky_launch_status = ProcessStatus(sky_launch_status)
+        d['sky_launch_status'] = sky_launch_status
+
+        sky_down_status = d['sky_down_status']
+        if sky_down_status:
+            sky_down_status = ProcessStatus(sky_down_status)
+        d['sky_down_status'] = sky_down_status
+
+        return ReplicaStatusProperty(**d)
+
     def remove_terminated_replica(self) -> bool:
         """Whether to remove the replica record from the replica table.
 
@@ -384,7 +409,7 @@ class ReplicaInfo:
     _VERSION = 0
 
     def __init__(self, replica_id: int, cluster_name: str, replica_port: str,
-                 is_spot: bool, version: int) -> None:
+                 is_spot: bool, version: int, status_property: ReplicaStatusProperty = ReplicaStatusProperty()) -> None:
         self._version = self._VERSION
         self.replica_id: int = replica_id
         self.cluster_name: str = cluster_name
@@ -392,7 +417,7 @@ class ReplicaInfo:
         self.replica_port: str = replica_port
         self.first_not_ready_time: Optional[float] = None
         self.consecutive_failure_times: List[float] = []
-        self.status_property: ReplicaStatusProperty = ReplicaStatusProperty()
+        self.status_property: ReplicaStatusProperty = status_property
         self.is_spot: bool = is_spot
 
     def handle(
@@ -444,7 +469,7 @@ class ReplicaInfo:
         info_dict = {
             'replica_id': self.replica_id,
             'name': self.cluster_name,
-            'status': self.status,
+            'status_property': self.status_property,
             'version': self.version,
             'is_spot': self.is_spot,
             'port': self.replica_port,

@@ -433,7 +433,7 @@ def add_or_update_replica(service_name: str, replica_id: int,
     service_id, service_name = _parse_name_values(service_name)
     with engine.connect() as cursor:
         d = replica_info.to_info_dict(False)
-        d.update({'status': d['status'].value})
+        d.update({'status_property': d['status_property'].to_dict()})
         ri = json.dumps(d)
         cursor.execute(
             f"""\
@@ -458,7 +458,7 @@ def get_replica_info_from_id(
         service_name: str,
         replica_id: int) -> Optional['replica_managers.ReplicaInfo']:
     """Gets a replica info from the database."""
-    from sky.serve.replica_managers import ReplicaInfo
+    from sky.serve.replica_managers import ReplicaInfo, ReplicaStatusProperty
     service_id, service_name = _parse_name_values(service_name)
     with engine.connect() as cursor:
         rows = cursor.execute(
@@ -467,12 +467,13 @@ def get_replica_info_from_id(
             WHERE service_id='{service_id}'
             AND replica_id='{replica_id}'""").fetchall()
     for row in rows:
-        return ReplicaInfo(
+        r = ReplicaInfo(
             row[0]['replica_id'],
             row[0]['name'],
             row[0]['port'],
             row[0]['is_spot'],
             row[0]['version'],
+            ReplicaStatusProperty.from_dict(row[0]['status_property']),
         )
         return json.loads(row[0])
     return None
@@ -481,7 +482,7 @@ def get_replica_info_from_id(
 def get_replica_infos(
         service_name: str) -> List['replica_managers.ReplicaInfo']:
     """Gets all replica infos of a service."""
-    from sky.serve.replica_managers import ReplicaInfo
+    from sky.serve.replica_managers import ReplicaInfo, ReplicaStatusProperty
     service_id, service_name = _parse_name_values(service_name)
     with engine.connect() as cursor:
         rows = cursor.execute(
@@ -494,12 +495,13 @@ def get_replica_infos(
             row[0]['port'],
             row[0]['is_spot'],
             row[0]['version'],
+            ReplicaStatusProperty.from_dict(row[0]['status_property']),
         ) for row in rows]
 
 
 def total_number_provisioning_replicas() -> int:
     """Returns the total number of provisioning replicas."""
-    from sky.serve.replica_managers import ReplicaInfo
+    from sky.serve.replica_managers import ReplicaInfo, ReplicaStatusProperty
     user_id = _get_user_id()
     with engine.connect() as cursor:
         rows = cursor.execute(f'SELECT r.replica_info FROM replicas r JOIN (SELECT * FROM services WHERE user_id = \'{user_id}\') s ON s.id=r.service_id').fetchall()
@@ -511,6 +513,7 @@ def total_number_provisioning_replicas() -> int:
             row[0]['port'],
             row[0]['is_spot'],
             row[0]['version'],
+            ReplicaStatusProperty.from_dict(row[0]['status_property']),
         )
         if replica_info.status == ReplicaStatus.PROVISIONING:
             provisioning_count += 1
