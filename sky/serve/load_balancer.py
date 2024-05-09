@@ -106,12 +106,13 @@ class SkyServeLoadBalancer:
         return fastapi.responses.Response(status_code=200)
 
     def run(self):
-        self._app.add_api_route('/{path:path}',
-                                self._redirect_handler,
-                                methods=['GET', 'POST', 'PUT', 'DELETE'])
         self._app.add_api_route('/komodo-health-check',
                                 self._health_check_handler,
                                 methods=['GET'])
+        self._app.add_api_route('/{path:path}',
+                                self._redirect_handler,
+                                methods=['GET', 'POST', 'PUT', 'DELETE'])
+
 
         @self._app.on_event('startup')
         def configure_logger():
