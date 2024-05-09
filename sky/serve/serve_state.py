@@ -280,7 +280,6 @@ def add_service(name: str, controller_job_id: int, policy: str,
 def remove_service(service_name: str) -> None:
     """Removes a service from the database."""
     service_id, service_name = _parse_name_values(service_name)
-    return
     with engine.connect() as cursor:
         cursor.execute(f"""\
             DELETE FROM services WHERE id='{service_id}'""")
