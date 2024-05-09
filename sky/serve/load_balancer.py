@@ -103,7 +103,7 @@ class SkyServeLoadBalancer:
         return fastapi.responses.RedirectResponse(url=path)
 
     async def _health_check_handler(self):
-        return {'status': 'ok'}
+        return fastapi.responses.Response(status_code=200)
 
     def run(self):
         self._app.add_api_route('/{path:path}',
