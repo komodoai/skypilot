@@ -467,7 +467,7 @@ def get_replica_info_from_id(
             WHERE service_id='{service_id}'
             AND replica_id='{replica_id}'""").fetchall()
     for row in rows:
-        r = ReplicaInfo(
+        return ReplicaInfo(
             row[0]['replica_id'],
             row[0]['name'],
             row[0]['port'],
@@ -574,7 +574,7 @@ def get_spec(service_name: str,
             WHERE service_id='{service_id}'
             AND version={version}""").fetchall()
     for row in rows:
-        return SkyServiceSpec.from_yaml_config(json.loads(row[0]))
+        return SkyServiceSpec.from_yaml_config(row[0])
         return json.loads(row[0])
     return None
 
