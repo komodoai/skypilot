@@ -1,4 +1,5 @@
 """LoadBalancer: redirect any incoming request to an endpoint replica."""
+import os
 import logging
 import threading
 import time
@@ -13,6 +14,8 @@ from sky.serve import load_balancing_policies as lb_policies
 from sky.serve import serve_utils
 
 logger = sky_logging.init_logger(__name__)
+
+KOMODO_SERVICE_ID = os.getenv("KOMODO_SERVICE_ID", None)
 
 
 class SkyServeLoadBalancer:
@@ -87,7 +90,15 @@ class SkyServeLoadBalancer:
                                         'Use "sky serve status [SERVICE_NAME]" '
                                         'to check the replica status.')
 
-        path = f'http://{ready_replica_url}{request.url.path}'
+        if KOMODO_SERVICE_ID and request_url_path.startswith(f"/{KOMODO_SERVICE_ID}"):
+            request_url_path = request.url.path
+            request_url_path_without_service_id = request_url_path[
+                len(f"/{KOMODO_SERVICE_ID}")+1 :
+            ]
+            path = f"http://{ready_replica_url}/{request_url_path_without_service_id}"
+        else:
+            path = f"http://{ready_replica_url}{request.url.path}"
+
         logger.info(f'Redirecting request to {path}')
         return fastapi.responses.RedirectResponse(url=path)
 
