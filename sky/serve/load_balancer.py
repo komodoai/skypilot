@@ -90,8 +90,8 @@ class SkyServeLoadBalancer:
                                         'Use "sky serve status [SERVICE_NAME]" '
                                         'to check the replica status.')
 
+        request_url_path = request.url.path
         if KOMODO_SERVICE_ID and request_url_path.startswith(f"/{KOMODO_SERVICE_ID}"):
-            request_url_path = request.url.path
             request_url_path_without_service_id = request_url_path[
                 len(f"/{KOMODO_SERVICE_ID}")+1 :
             ]
@@ -112,7 +112,6 @@ class SkyServeLoadBalancer:
         self._app.add_api_route('/{path:path}',
                                 self._redirect_handler,
                                 methods=['GET', 'POST', 'PUT', 'DELETE'])
-
 
         @self._app.on_event('startup')
         def configure_logger():
