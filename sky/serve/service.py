@@ -236,6 +236,15 @@ def _start(service_name: str, tmp_task_yaml: str, job_id: int):
             serve_state.remove_service(service_name)
             logger.info(f'Service {service_name} terminated successfully.')
 
+        termination_file = os.environ.get('SKYPILOT_SERVICE_TERMINATION_FINISH_SIGNAL_FILE', None)
+        if termination_file:
+            # if this file exists, rather than exiting here, we create this termination file, and then wait
+            # forever for the process to be killed externally
+            with open(termination_file, 'w') as f:
+                f.write('1')
+            while True:
+                time.sleep(100000000)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Sky Serve Service')
