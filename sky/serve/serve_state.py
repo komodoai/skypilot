@@ -418,11 +418,11 @@ def get_glob_service_names(
         else:
             rows = []
             for service_name in service_names:
-                like_str = f'*_{service_name}'
+                service_id, service_name = _parse_name_values(service_name)
                 rows.extend(
                     cursor.execute(
-                        f'SELECT name FROM services WHERE name LIKE \'{like_str}\' AND user_id = \'{user_id}\'').fetchall())
-    return list({row[0] for row in rows})
+                        f'SELECT id,name FROM services WHERE id=\'{service_id}\' AND user_id = \'{user_id}\'').fetchall())
+    return list({f'{row[0]}_{row[1]}' for row in rows})
 
 
 # === Replica functions ===
