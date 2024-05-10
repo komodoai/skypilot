@@ -12,7 +12,7 @@ SKYSERVE_METADATA_DIR = f'{SKY_HOME}/serve'
 PORT_SELECTION_FILE_LOCK_PATH = f'{SKYSERVE_METADATA_DIR}/port_selection.lock'
 
 # Signal file path for controller to handle signals.
-SIGNAL_FILE_PATH = os.path.join(SKY_HOME, 'serve', '/sky_serve_controller_signal_{}')
+SIGNAL_FILE_PATH = os.path.join(SKY_HOME, 'serve', 'sky_serve_controller_signal_{}')
 
 # Time to wait in seconds for service to register on the controller.
 SERVICE_REGISTER_TIMEOUT_SECONDS = 60
