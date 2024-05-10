@@ -11,7 +11,6 @@ if __name__ == '__main__':
                         help='Name of the service',
                         required=True)
     parser.add_argument('--purge',
-                        type=bool,
                         action='store_true',
                         default=False)
     args = parser.parse_args()
