@@ -421,7 +421,7 @@ def get_glob_service_names(
                 like_str = f'*_{service_name}'
                 rows.extend(
                     cursor.execute(
-                        f'SELECT name FROM services WHERE name LIKE {like_str} AND user_id = \'{user_id}\'').fetchall())
+                        f'SELECT name FROM services WHERE name LIKE \'{like_str}\' AND user_id = \'{user_id}\'').fetchall())
     return list({row[0] for row in rows})
 
 
