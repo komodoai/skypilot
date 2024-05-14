@@ -472,6 +472,8 @@ def get_replica_info_from_id(
             row[0]['port'],
             row[0]['is_spot'],
             row[0]['version'],
+            row[0].get('first_not_ready_time', None),
+            row[0].get('consecutive_failure_times', []),
             ReplicaStatusProperty.from_dict(row[0]['status_property']),
         )
         return json.loads(row[0])
@@ -494,6 +496,8 @@ def get_replica_infos(
             row[0]['port'],
             row[0]['is_spot'],
             row[0]['version'],
+            row[0].get('first_not_ready_time', None),
+            row[0].get('consecutive_failure_times', []),
             ReplicaStatusProperty.from_dict(row[0]['status_property']),
         ) for row in rows]
 
@@ -512,6 +516,8 @@ def total_number_provisioning_replicas() -> int:
             row[0]['port'],
             row[0]['is_spot'],
             row[0]['version'],
+            row[0].get('first_not_ready_time', None),
+            row[0].get('consecutive_failure_times', []),
             ReplicaStatusProperty.from_dict(row[0]['status_property']),
         )
         if replica_info.status == ReplicaStatus.PROVISIONING:

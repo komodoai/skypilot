@@ -409,14 +409,15 @@ class ReplicaInfo:
     _VERSION = 0
 
     def __init__(self, replica_id: int, cluster_name: str, replica_port: str,
-                 is_spot: bool, version: int, status_property: ReplicaStatusProperty = ReplicaStatusProperty()) -> None:
+                 is_spot: bool, version: int, first_not_ready_time: Optional[float] = None,
+                 consecutive_failure_times: List[float] = [], status_property: ReplicaStatusProperty = ReplicaStatusProperty()) -> None:
         self._version = self._VERSION
         self.replica_id: int = replica_id
         self.cluster_name: str = cluster_name
         self.version: int = version
         self.replica_port: str = replica_port
-        self.first_not_ready_time: Optional[float] = None
-        self.consecutive_failure_times: List[float] = []
+        self.first_not_ready_time: Optional[float] = first_not_ready_time
+        self.consecutive_failure_times: List[float] = consecutive_failure_times
         self.status_property: ReplicaStatusProperty = status_property
         self.is_spot: bool = is_spot
 
@@ -475,6 +476,8 @@ class ReplicaInfo:
             'port': self.replica_port,
             'launched_at': (cluster_record['launched_at']
                             if cluster_record is not None else None),
+            'first_not_ready_time': self.first_not_ready_time,
+            'consecutive_failure_times': self.consecutive_failure_times,
         }
         if with_handle:
             info_dict['handle'] = self.handle(cluster_record)
