@@ -86,9 +86,7 @@ class SkyServeLoadBalancer:
 
         if ready_replica_url is None:
             raise fastapi.HTTPException(status_code=503,
-                                        detail='No ready replicas. '
-                                        'Use "sky serve status [SERVICE_NAME]" '
-                                        'to check the replica status.')
+                                        detail='No ready replicas.')
 
         request_url_path = request.url.path
         if KOMODO_SERVICE_ID and request_url_path.startswith(f"/{KOMODO_SERVICE_ID}"):
