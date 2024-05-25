@@ -81,6 +81,8 @@ class AWSIdentityType(enum.Enum):
 
     IAM_ROLE = 'iam-role'
 
+    ASSUME_ROLE = 'assume-role'
+
     ASSUME_ROLE_WITH_WEB_IDENTITY = 'assume-role-with-web-identity'
 
     #       Name                    Value             Type    Location
