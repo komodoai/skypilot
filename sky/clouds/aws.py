@@ -83,6 +83,9 @@ class AWSIdentityType(enum.Enum):
     IAM_ROLE = 'iam-role'
 
     CONTAINER_ROLE = 'container-role'
+    ASSUME_ROLE = 'assume-role'
+
+    ASSUME_ROLE_WITH_WEB_IDENTITY = 'assume-role-with-web-identity'
 
     #       Name                    Value             Type    Location
     #       ----                    -----             ----    --------
@@ -632,6 +635,10 @@ class AWS(clouds.Cloud):
             return AWSIdentityType.CONTAINER_ROLE
         elif _is_access_key_of_type(AWSIdentityType.ENV.value):
             return AWSIdentityType.ENV
+        elif _is_access_key_of_type(AWSIdentityType.ASSUME_ROLE_WITH_WEB_IDENTITY.value):
+            return AWSIdentityType.ASSUME_ROLE_WITH_WEB_IDENTITY
+        elif _is_access_key_of_type(AWSIdentityType.ASSUME_ROLE.value):
+            return AWSIdentityType.ASSUME_ROLE
         else:
             return AWSIdentityType.SHARED_CREDENTIALS_FILE
 
