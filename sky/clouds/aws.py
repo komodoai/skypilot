@@ -81,6 +81,8 @@ class AWSIdentityType(enum.Enum):
 
     IAM_ROLE = 'iam-role'
 
+    ASSUME_ROLE_WITH_WEB_IDENTITY = 'assume-role-with-web-identity'
+
     #       Name                    Value             Type    Location
     #       ----                    -----             ----    --------
     #    profile                <not set>             None    None
@@ -606,6 +608,8 @@ class AWS(clouds.Cloud):
             return AWSIdentityType.IAM_ROLE
         elif _is_access_key_of_type(AWSIdentityType.ENV.value):
             return AWSIdentityType.ENV
+        elif _is_access_key_of_type(AWSIdentityType.ASSUME_ROLE_WITH_WEB_IDENTITY.value):
+            return AWSIdentityType.ASSUME_ROLE_WITH_WEB_IDENTITY
         else:
             return AWSIdentityType.SHARED_CREDENTIALS_FILE
 
