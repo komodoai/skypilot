@@ -612,6 +612,8 @@ class AWS(clouds.Cloud):
             return AWSIdentityType.ENV
         elif _is_access_key_of_type(AWSIdentityType.ASSUME_ROLE_WITH_WEB_IDENTITY.value):
             return AWSIdentityType.ASSUME_ROLE_WITH_WEB_IDENTITY
+        elif _is_access_key_of_type(AWSIdentityType.ASSUME_ROLE):
+            return AWSIdentityType.ASSUME_ROLE
         else:
             return AWSIdentityType.SHARED_CREDENTIALS_FILE
 
