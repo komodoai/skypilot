@@ -75,6 +75,10 @@ def get_user_hash(force_fresh_hash: bool = False) -> str:
             avoid controllers sharing the same ssh key field name as the
             local client.
     """
+    hash_str = os.environ.get('SKYPILOT_USER_HASH_STR', None)
+    if hash_str:
+        user_hash = hashlib.md5(hash_str.encode()).hexdigest()[:USER_HASH_LENGTH]
+        return user_hash
 
     def _is_valid_user_hash(user_hash: Optional[str]) -> bool:
         if user_hash is None:
