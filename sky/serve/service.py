@@ -235,8 +235,10 @@ def _start(service_name: str, tmp_task_yaml: str, job_id: int):
         else:
             shutil.rmtree(service_dir)
             serve_state.remove_service(service_name)
+            time.sleep(5)
             if os.path.exists(constants.SKY_HOME):
                 shutil.rmtree(constants.SKY_HOME, ignore_errors=True)
+                time.sleep(1)
                 if os.path.exists(constants.SKY_HOME):
                     logger.warning(f"{constants.SKY_HOME} is not cleaned up.")
             logger.info(f'Service {service_name} terminated successfully.')
