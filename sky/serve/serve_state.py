@@ -18,7 +18,7 @@ if typing.TYPE_CHECKING:
     from sky.serve import replica_managers
     from sky.serve import service_spec
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 import os
 
 if os.environ.get('DATABASE_URL', None):
@@ -263,12 +263,15 @@ def add_service(name: str, controller_job_id: int, policy: str,
     service_id, service_name = _parse_name_values(name)
     try:
         with engine.connect() as cursor:
-            cursor.execute(
+            query = text(
                 f"""\
                 INSERT INTO services
                 (user_id, id, name, controller_job_id, status, policy,
                 resources)
-                VALUES ('{user_id}', '{service_id}', '{service_name}', '{controller_job_id}', '{status.value}', '{policy}', '{requested_resources_str}')""")
+                VALUES ('{user_id}', '{service_id}', '{service_name}', '{controller_job_id}', '{status.value}', '{policy}', '{requested_resources_str}')"""
+            )
+            cursor.execute(query)
+            cursor.commit()
 
     except sqlite3.IntegrityError as e:
         if str(e) != _UNIQUE_CONSTRAINT_FAILED_ERROR_MSG:
@@ -281,18 +284,22 @@ def remove_service(service_name: str) -> None:
     """Removes a service from the database."""
     service_id, service_name = _parse_name_values(service_name)
     with engine.connect() as cursor:
-        cursor.execute(f"""\
+        query = text(
+            f"""\
             DELETE FROM services WHERE id='{service_id}'""")
+        cursor.execute(query)
+        cursor.commit()
 
 
 def set_service_uptime(service_name: str, uptime: int) -> None:
     """Sets the uptime of a service."""
     service_id, service_name = _parse_name_values(service_name)
     with engine.connect() as cursor:
-        cursor.execute(
+        query = text(
             f"""\
-            UPDATE services SET
-            uptime={uptime} WHERE id='{service_id}'""")
+            UPDATE services SET uptime={uptime} WHERE id='{service_id}'""")
+        cursor.execute(query)
+        cursor.commit()
 
 
 def set_service_status_and_active_versions(
@@ -307,21 +314,22 @@ def set_service_status_and_active_versions(
         vars_to_set = f'status=\'{status.value}\', active_versions=\'{json.dumps(active_versions)}\''
         # values = (status.value, json.dumps(active_versions), service_name)
     with engine.connect() as cursor:
-        cursor.execute(
+        query = text(
             f"""\
-            UPDATE services SET
-            {vars_to_set} WHERE id='{service_id}'""")
-
+            UPDATE services SET {vars_to_set} WHERE id='{service_id}'""")
+        cursor.execute(query)
+        cursor.commit()
 
 def set_service_controller_port(service_name: str,
                                 controller_port: int) -> None:
     """Sets the controller port of a service."""
     service_id, service_name = _parse_name_values(service_name)
     with engine.connect() as cursor:
-        cursor.execute(
+        query = text(
             f"""\
-            UPDATE services SET
-            controller_port={controller_port} WHERE id='{service_id}'""")
+            UPDATE services SET controller_port={controller_port} WHERE id='{service_id}'""")
+        cursor.execute(query)
+        cursor.commit()
 
 
 def set_service_load_balancer_port(service_name: str,
@@ -329,10 +337,11 @@ def set_service_load_balancer_port(service_name: str,
     """Sets the load balancer port of a service."""
     service_id, service_name = _parse_name_values(service_name)
     with engine.connect() as cursor:
-        cursor.execute(
+        query = text(
             f"""\
-            UPDATE services SET
-            load_balancer_port={load_balancer_port} WHERE id='{service_id}'""")
+            UPDATE services SET load_balancer_port={load_balancer_port} WHERE id='{service_id}'""")
+        cursor.execute(query)
+        cursor.commit()
 
 
 def _get_service_from_row(row) -> Dict[str, Any]:
@@ -363,11 +372,14 @@ def get_services() -> List[Dict[str, Any]]:
     """Get all existing service records."""
     user_id = _get_user_id()
     with engine.connect() as cursor:
-        rows = cursor.execute('SELECT v.max_version, s.id, s.name, s.controller_job_id, s.controller_port, s.load_balancer_port, s.status, s.uptime, s.replica_policy_min_replicas, s.replica_policy_max_replicas, s.requested_resources, s.active_versions FROM services s '
-                              'JOIN ('
-                              'SELECT service_id, MAX(version) as max_version'
-                              ' FROM version_specs GROUP BY service_id) v '
-                              f'ON s.id=v.service_id WHERE s.user_id=\'{user_id}\'').fetchall()
+        query = text(
+            f"""\
+            SELECT v.max_version, s.id, s.name, s.controller_job_id, s.controller_port, s.load_balancer_port, s.status, s.uptime, s.replica_policy_min_replicas, s.replica_policy_max_replicas, s.requested_resources, s.active_versions FROM services s
+            JOIN (
+            SELECT service_id, MAX(version) as max_version
+            FROM version_specs GROUP BY service_id) v
+            ON s.id=v.service_id WHERE s.user_id='{user_id}'""")
+        rows = cursor.execute(query).fetchall()
     records = []
     for row in rows:
         records.append(_get_service_from_row(row))
@@ -378,12 +390,19 @@ def get_service_from_name(service_name: str) -> Optional[Dict[str, Any]]:
     """Get all existing service records."""
     service_id, service_name = _parse_name_values(service_name)
     with engine.connect() as cursor:
-        rows = cursor.execute(
-            'SELECT v.max_version, s.id, s.name, s.controller_job_id, s.controller_port, s.load_balancer_port, s.status, s.uptime, s.replica_policy_min_replicas, s.replica_policy_max_replicas, s.requested_resources, s.active_versions FROM services s '
-            'JOIN ('
-            'SELECT service_id, MAX(version) as max_version '
-            f'FROM version_specs WHERE service_id=\'{service_id}\' GROUP BY service_id) v '
-            f'ON s.id=v.service_id WHERE id=\'{service_id}\'').fetchall()
+        query = text("""
+            SELECT v.max_version, s.id, s.name, s.controller_job_id, s.controller_port, s.load_balancer_port, s.status, s.uptime, s.replica_policy_min_replicas, s.replica_policy_max_replicas, s.requested_resources, s.active_versions 
+            FROM services s
+            LEFT JOIN (
+                SELECT service_id, MAX(version) as max_version
+                FROM version_specs 
+                WHERE service_id=:service_id 
+                GROUP BY service_id
+            ) v 
+            ON s.id=v.service_id 
+            WHERE id=:service_id
+        """)
+        rows = cursor.execute(query, {"service_id": service_id}).fetchall()
     for row in rows:
         return _get_service_from_row(row)
     return None
@@ -393,10 +412,10 @@ def get_service_versions(service_name: str) -> List[int]:
     """Gets all versions of a service."""
     service_id, service_name = _parse_name_values(service_name)
     with engine.connect() as cursor:
-        rows = cursor.execute(
+        query = text(
             f"""\
-            SELECT DISTINCT version FROM version_specs
-            WHERE service_id='{service_id}'""").fetchall()
+            SELECT DISTINCT version FROM version_specs WHERE service_id='{service_id}'""")
+        rows = cursor.execute(query).fetchall()
     return [row[0] for row in rows]
 
 
@@ -414,14 +433,16 @@ def get_glob_service_names(
     user_id = _get_user_id()
     with engine.connect() as cursor:
         if service_names is None:
-            rows = cursor.execute(f'SELECT id,name FROM services WHERE user_id=\'{user_id}\'').fetchall()
+            query = text(
+                f'SELECT id,name FROM services WHERE user_id=\'{user_id}\'')
+            rows = cursor.execute(query).fetchall()
         else:
             rows = []
             for service_name in service_names:
                 service_id, service_name = _parse_name_values(service_name)
-                rows.extend(
-                    cursor.execute(
-                        f'SELECT id,name FROM services WHERE id=\'{service_id}\' AND user_id = \'{user_id}\'').fetchall())
+                query = text(
+                    f'SELECT id,name FROM services WHERE user_id=\'{user_id}\' AND id=\'{service_id}\'')
+                rows.extend(cursor.execute(query).fetchall())
     return list({row[0] for row in rows})
 
 
@@ -457,35 +478,52 @@ def add_or_update_replica(service_name: str, replica_id: int,
 
         d.update({'status_property': d['status_property'].to_dict()})
         ri = json.dumps(d)
-        query = """\
-        INSERT INTO replicas
-        (service_id, replica_id, replica_info, skypilot_cluster_id, cloud, region, zone, instance_type, accelerators, ports, disk_size, spot)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT (service_id, replica_id)
-        DO UPDATE SET replica_info=EXCLUDED.replica_info,
-                      skypilot_cluster_id=EXCLUDED.skypilot_cluster_id,
-                      cloud=EXCLUDED.cloud,
-                      region=EXCLUDED.region,
-                      zone=EXCLUDED.zone,
-                      instance_type=EXCLUDED.instance_type,
-                      accelerators=EXCLUDED.accelerators,
-                      ports=EXCLUDED.ports,
-                      disk_size=EXCLUDED.disk_size,
-                      spot=EXCLUDED.spot
-                      """
-        cursor.execute(query, (service_id, replica_id, ri, replica_info.cluster_name, cloud, region, zone, instance_type, accelerators, ports, disk_size, spot))
+
+        query = text("""
+          INSERT INTO replicas
+          (service_id, replica_id, replica_info, skypilot_cluster_id, cloud, region, zone, instance_type, accelerators, ports, disk_size, spot)
+          VALUES (:service_id, :replica_id, :replica_info, :skypilot_cluster_id, :cloud, :region, :zone, :instance_type, :accelerators, :ports, :disk_size, :spot)
+          ON CONFLICT (service_id, replica_id)
+          DO UPDATE SET replica_info=EXCLUDED.replica_info,
+                        skypilot_cluster_id=EXCLUDED.skypilot_cluster_id,
+                        cloud=EXCLUDED.cloud,
+                        region=EXCLUDED.region,
+                        zone=EXCLUDED.zone,
+                        instance_type=EXCLUDED.instance_type,
+                        accelerators=EXCLUDED.accelerators,
+                        ports=EXCLUDED.ports,
+                        disk_size=EXCLUDED.disk_size,
+                        spot=EXCLUDED.spot
+        """)
+        cursor.execute(
+            query,
+            {
+                "service_id": service_id,
+                "replica_id": replica_id,
+                "replica_info": ri,
+                "skypilot_cluster_id": replica_info.cluster_name,
+                "cloud": cloud,
+                "region": region,
+                "zone": zone,
+                "instance_type": instance_type,
+                "accelerators": accelerators,
+                "ports": ports,
+                "disk_size": disk_size,
+                "spot": spot,
+            },
+        )
+        cursor.commit()
 
 
 def remove_replica(service_name: str, replica_id: int) -> None:
     """Removes a replica from the database."""
     service_id, service_name = _parse_name_values(service_name)
     with engine.connect() as cursor:
-        cursor.execute(
+        query = text(
             f"""\
-            DELETE FROM replicas
-            WHERE service_id='{service_id}'
-            AND replica_id='{replica_id}'""")
-
+            DELETE FROM replicas WHERE service_id='{service_id}' AND replica_id='{replica_id}'""")
+        cursor.execute(query)
+        cursor.commit()
 
 def get_replica_info_from_id(
         service_name: str,
@@ -494,11 +532,12 @@ def get_replica_info_from_id(
     from sky.serve.replica_managers import ReplicaInfo, ReplicaStatusProperty
     service_id, service_name = _parse_name_values(service_name)
     with engine.connect() as cursor:
-        rows = cursor.execute(
+        query = text(
             f"""\
             SELECT replica_info FROM replicas
             WHERE service_id='{service_id}'
-            AND replica_id='{replica_id}'""").fetchall()
+            AND replica_id='{replica_id}'""")
+        rows = cursor.execute(query).fetchall()
     for row in rows:
         return ReplicaInfo(
             row[0]['replica_id'],
@@ -520,10 +559,11 @@ def get_replica_infos(
     from sky.serve.replica_managers import ReplicaInfo, ReplicaStatusProperty
     service_id, service_name = _parse_name_values(service_name)
     with engine.connect() as cursor:
-        rows = cursor.execute(
+        query = text(
             f"""\
             SELECT replica_info FROM replicas
-            WHERE service_id='{service_id}'""").fetchall()
+            WHERE service_id='{service_id}'""")
+        rows = cursor.execute(query).fetchall()
     return [ReplicaInfo(
             row[0]['replica_id'],
             row[0]['name'],
@@ -541,7 +581,10 @@ def total_number_provisioning_replicas() -> int:
     from sky.serve.replica_managers import ReplicaInfo, ReplicaStatusProperty
     user_id = _get_user_id()
     with engine.connect() as cursor:
-        rows = cursor.execute(f'SELECT r.replica_info FROM replicas r JOIN (SELECT * FROM services WHERE user_id = \'{user_id}\') s ON s.id=r.service_id').fetchall()
+        query = text(
+            f"""\
+            SELECT r.replica_info FROM replicas r JOIN (SELECT * FROM services WHERE user_id = '{user_id}') s ON s.id=r.service_id""")
+        rows = cursor.execute(query).fetchall()
     provisioning_count = 0
     for row in rows:
         replica_info: 'replica_managers.ReplicaInfo' = ReplicaInfo(
@@ -564,14 +607,17 @@ def add_version(service_name: str) -> int:
     """Adds a version to the database."""
     service_id, service_name = _parse_name_values(service_name)
     with engine.connect() as cursor:
-        cursor.execute(
+        query = text(
             f"""\
             INSERT INTO version_specs
             (version, service_id, spec)
             VALUES (
                 (SELECT COALESCE(MAX(version), 0) + 1 FROM
                 version_specs WHERE service_id = '{service_id}'), '{service_id}', '{json.dumps(None)}')
-            RETURNING version""")
+            RETURNING version
+            """)
+        cursor.execute(query)
+        cursor.commit()
 
         inserted_version = cursor.fetchone()[0]
 
@@ -583,22 +629,28 @@ def add_or_update_version(service_name: str, version: int,
     service_id, service_name = _parse_name_values(service_name)
     with engine.connect() as cursor:
         s = json.dumps(spec.to_yaml_config())
-        cursor.execute(
+        query = text(
             f"""\
-        INSERT INTO version_specs
-        (service_id, version, spec) 
-        VALUES ('{service_id}', {version}, '{s}') 
-        ON CONFLICT (service_id, version) DO UPDATE SET spec=EXCLUDED.spec""")
+            INSERT INTO version_specs
+            (service_id, version, spec)
+            VALUES ('{service_id}', {version}, '{s}')
+            ON CONFLICT (service_id, version)
+            DO UPDATE SET spec=EXCLUDED.spec
+            """
+        )
+        cursor.execute(query)
+        cursor.commit()
 
 
 def remove_service_versions(service_name: str) -> None:
     """Removes a replica from the database."""
     service_id, service_name = _parse_name_values(service_name)
     with engine.connect() as cursor:
-        cursor.execute(
+        query = text(
             f"""\
-            DELETE FROM version_specs
-            WHERE service_id='{service_id}'""")
+            DELETE FROM version_specs WHERE service_id='{service_id}'""")
+        cursor.execute(query)
+        cursor.commit()
 
 
 def get_spec(service_name: str,
@@ -607,11 +659,12 @@ def get_spec(service_name: str,
     from sky.serve.service_spec import SkyServiceSpec
     service_id, service_name = _parse_name_values(service_name)
     with engine.connect() as cursor:
-        rows = cursor.execute(
+        query = text(
             f"""\
             SELECT spec FROM version_specs
             WHERE service_id='{service_id}'
-            AND version={version}""").fetchall()
+            AND version={version}""")
+        rows = cursor.execute(query).fetchall()
     for row in rows:
         return SkyServiceSpec.from_yaml_config(row[0])
         return json.loads(row[0])
@@ -622,8 +675,10 @@ def delete_version(service_name: str, version: int) -> None:
     """Deletes a version from the database."""
     service_id, service_name = _parse_name_values(service_name)
     with engine.connect() as cursor:
-        cursor.execute(
+        query = text(
             f"""\
             DELETE FROM version_specs
             WHERE service_id='{service_id}'
             AND version={version}""")
+        cursor.execute(query)
+        cursor.commit()
