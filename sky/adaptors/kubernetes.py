@@ -62,6 +62,8 @@ def _load_config():
     if _configured:
         return
     try:
+        if os.environ.get("SKYPILOT_IGNORE_KUBERNETES_IN_CLUSTER_CONFIG", "") == "1":
+            raise kubernetes.config.config_exception.ConfigException()
         # Load in-cluster config if running in a pod
         # Kubernetes set environment variables for service discovery do not
         # show up in SkyPilot tasks. For now, we work around by using
