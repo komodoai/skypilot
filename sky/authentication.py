@@ -363,6 +363,7 @@ def setup_ibm_authentication(config):
 def setup_kubernetes_authentication(config: Dict[str, Any]) -> Dict[str, Any]:
     # Default ssh session is established with kubectl port-forwarding with
     # ClusterIP service.
+    logger.info("enter setup_kubernetes_authentication")
     nodeport_mode = kubernetes_enums.KubernetesNetworkingMode.NODEPORT
     port_forward_mode = kubernetes_enums.KubernetesNetworkingMode.PORTFORWARD
     network_mode_str = skypilot_config.get_nested(('kubernetes', 'networking'),
@@ -377,6 +378,9 @@ def setup_kubernetes_authentication(config: Dict[str, Any]) -> Dict[str, Any]:
             raise ValueError(str(e) + ' Please check: ~/.sky/config.yaml.') \
                 from None
     get_or_generate_keys()
+
+    logger.info("network_mode: %s", network_mode_str)
+    logger.info("network_mode: %s", network_mode)
 
     # Add the user's public key to the SkyPilot cluster.
     public_key_path = os.path.expanduser(PUBLIC_SSH_KEY_PATH)
@@ -413,20 +417,26 @@ def setup_kubernetes_authentication(config: Dict[str, Any]) -> Dict[str, Any]:
         kubernetes.core_api().create_namespaced_secret(namespace, secret)
 
     private_key_path, _ = get_or_generate_keys()
+    logger.info("private_key_path: %s", private_key_path)
     if network_mode == nodeport_mode:
         # ssh_jump_name = clouds.Kubernetes.SKY_SSH_JUMP_NAME
         ssh_jump_name = config["cluster_name"] + "-head"
         service_type = kubernetes_enums.KubernetesServiceType.NODEPORT
+        logger.info("ssh_jump_name: %s", ssh_jump_name)
+        logger.info("service_type: %s", service_type)
         # Setup service for SSH jump pod. We create the SSH jump service here
         # because we need to know the service IP address and port to set the
         # ssh_proxy_command in the autoscaler config.
         kubernetes_utils.setup_ssh_jump_svc(ssh_jump_name, namespace,
                                             service_type)
+        logger.info("ssh_jump_svc setup done")
+        logger.info("getting ssh_proxy_cmd")
         ssh_proxy_cmd = kubernetes_utils.get_ssh_proxy_command(
             ssh_jump_name,
             nodeport_mode,
             private_key_path=private_key_path,
             namespace=namespace)
+        logger.info("ssh_proxy_cmd: %s", ssh_proxy_cmd)
     elif network_mode == port_forward_mode:
         # Using `kubectl port-forward` creates a direct tunnel to the pod and
         # does not require a ssh jump pod.
@@ -446,6 +456,10 @@ def setup_kubernetes_authentication(config: Dict[str, Any]) -> Dict[str, Any]:
         # This should never happen because we check for this in from_str above.
         raise ValueError(f'Unsupported networking mode: {network_mode_str}')
     config['auth']['ssh_proxy_command'] = ssh_proxy_cmd
+
+    logger.info("config")
+    logger.info(config)
+    logger.info("exit setup_kubernetes_authentication")
 
     return config
 
