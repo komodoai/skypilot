@@ -385,9 +385,20 @@ def wait_for_ssh(cluster_info: provision_common.ClusterInfo,
         waiter = _wait_ssh_connection_direct
     else:
         # See https://github.com/skypilot-org/skypilot/pull/1512
-        waiter = _wait_ssh_connection_indirect
+        # waiter = _wait_ssh_connection_indirect
+        waiter = _wait_ssh_connection_direct
     ip_list = cluster_info.get_feasible_ips()
     port_list = cluster_info.get_ssh_ports()
+
+    ssh_proxy_command = ssh_credentials.get('ssh_proxy_command', None)
+    if ssh_proxy_command:
+        logger.info(f'Using SSH proxy command: {ssh_proxy_command}')
+        ssh_proxy_command_split = ssh_proxy_command.split(' ')
+        real_ssh_port = ssh_proxy_command_split[-2]
+        port_list = [real_ssh_port] * len(ip_list)
+        ssh_credentials.pop('ssh_proxy_command')
+
+    logger.info(f'Waiting for SSH to {ip_list} with ports {port_list} ...')
 
     timeout = 60 * 10  # 10-min maximum timeout
     start = time.time()
