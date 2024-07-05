@@ -4,6 +4,7 @@ import hashlib
 import os
 import pathlib
 import shlex
+import shutil
 import time
 from typing import Any, Callable, Iterable, List, Optional, Tuple, Type, Union
 
@@ -818,6 +819,9 @@ class KubernetesCommandRunner(CommandRunner):
         # Build command.
         helper_path = os.path.join(os.path.abspath(os.path.dirname(__file__)),
                                    'kubernetes', 'rsync_helper.sh')
+        new_helper_path = '/tmp/rsync_helper.sh'
+        shutil.copyfile(helper_path, new_helper_path)
+        helper_path = new_helper_path
         self._rsync(
             source,
             target,
