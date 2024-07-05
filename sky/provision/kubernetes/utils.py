@@ -1068,6 +1068,12 @@ def setup_ssh_jump_svc(ssh_jump_name: str, namespace: str,
 
     # Create service
     try:
+        logger.info(content['service_spec'])
+        for port in content['service_spec']['spec']['ports']:
+            logger.info(f"Port: {port['port']}")
+            if 'name' not in port:
+                logger.info(f"Port name not found, setting it to port")
+                port['name'] = f"port-{port['port']}"
         kubernetes.core_api().create_namespaced_service(namespace,
                                                         content['service_spec'])
     except kubernetes.api_exception() as e:
