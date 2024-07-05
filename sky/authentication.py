@@ -414,7 +414,8 @@ def setup_kubernetes_authentication(config: Dict[str, Any]) -> Dict[str, Any]:
 
     private_key_path, _ = get_or_generate_keys()
     if network_mode == nodeport_mode:
-        ssh_jump_name = clouds.Kubernetes.SKY_SSH_JUMP_NAME
+        # ssh_jump_name = clouds.Kubernetes.SKY_SSH_JUMP_NAME
+        ssh_jump_name = config["cluster_name"] + "-head"
         service_type = kubernetes_enums.KubernetesServiceType.NODEPORT
         # Setup service for SSH jump pod. We create the SSH jump service here
         # because we need to know the service IP address and port to set the
