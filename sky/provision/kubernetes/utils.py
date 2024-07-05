@@ -997,14 +997,19 @@ def get_ssh_proxy_command(
         namespace: Kubernetes namespace to use.
             Required for NODEPORT networking mode.
     """
+    logger.info("enter get_ssh_proxy_command")
+    logger.info("network_mode: %s", network_mode)
     # Fetch IP to connect to for the jump svc
     ssh_jump_ip = get_external_ip(network_mode)
+    logger.info(f"ssh_jump_ip: {ssh_jump_ip}")
     assert private_key_path is not None, 'Private key path must be provided'
     if network_mode == kubernetes_enums.KubernetesNetworkingMode.NODEPORT:
         assert namespace is not None, 'Namespace must be provided for NodePort'
         ssh_jump_port = get_port(k8s_ssh_target, namespace)
+        logger.info(f"ssh_jump_port: {ssh_jump_port}")
         ssh_jump_proxy_command = construct_ssh_jump_command(
             private_key_path, ssh_jump_ip, ssh_jump_port=ssh_jump_port)
+        logger.info(f"ssh_jump_proxy_command: {ssh_jump_proxy_command}")
     else:
         ssh_jump_proxy_command_path = create_proxy_command_script()
         ssh_jump_proxy_command = construct_ssh_jump_command(
