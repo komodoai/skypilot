@@ -36,6 +36,7 @@ class KubernetesPortMode(enum.Enum):
     INGRESS = 'ingress'
     LOADBALANCER = 'loadbalancer'
     PODIP = 'podip'
+    NODEPORT = 'nodeport'
 
 
 class KubernetesAutoscalerType(enum.Enum):
