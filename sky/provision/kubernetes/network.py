@@ -345,10 +345,13 @@ def _query_ports_for_nodeport(
     if service is None:
         return {}
 
-    node_ip = network_utils.get_nodeport_service_external_ip(
-        provider_config.get("namespace", "default"),
-        service_name
-    )
+    try:
+      node_ip = network_utils.get_nodeport_service_external_ip(
+          provider_config.get("namespace", "default"),
+          service_name
+      )
+    except Exception:
+        return {}
 
     service_ports = service.spec.ports
     for service_port in service_ports:
