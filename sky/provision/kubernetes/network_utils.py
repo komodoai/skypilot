@@ -261,3 +261,45 @@ def get_pod_ip(namespace: str, pod_name: str) -> Optional[str]:
                                        _request_timeout=kubernetes.API_TIMEOUT)
 
     return pod.status.pod_ip if pod.status.pod_ip is not None else None
+
+
+def get_namespaced_service(namespace: str, service_name: str) -> Dict:
+    """Returns the service resource."""
+    core_api = kubernetes.core_api()
+    return core_api.read_namespaced_service(
+        service_name, namespace, _request_timeout=kubernetes.API_TIMEOUT
+    )
+
+def get_nodeport_service_external_ip(namespace: str, service_name: str) -> str:
+    """Returns the external IP address of the nodeport service."""
+    core_api = kubernetes.core_api()
+    service = core_api.read_namespaced_service(service_name, namespace, _request_timeout=kubernetes.API_TIMEOUT)
+    label_selector = service.spec.selector
+    label_selector_str = ",".join([f"{key}={value}" for key, value in label_selector.items()])
+    pods = core_api.list_namespaced_pod(
+        namespace=namespace, label_selector=label_selector_str
+    )
+    if not pods.items:
+        raise Exception(
+            f'No pods found with label selector: {label_selector_str}'
+        )
+    node_name = pods.items[0].spec.node_name
+    node = core_api.read_node(name=node_name)
+
+    external_ip = None
+    # Try to get the external IP from node status addresses
+    for address in node.status.addresses:
+        if address.type == "ExternalIP":
+            external_ip = address.address
+            break
+
+    if not external_ip:
+        external_ip = node.metadata.annotations.get("rke.cattle.io/external-ip", None)
+
+    if not external_ip:
+        raise Exception(
+            f'No external IP found for node: {node_name}'
+        )
+
+    # Try to get the external IP from node status addresses
+    return external_ip

@@ -31,6 +31,12 @@ def open_ports(
         _open_ports_using_ingress(cluster_name_on_cloud=cluster_name_on_cloud,
                                   ports=ports,
                                   provider_config=provider_config)
+    elif port_mode == kubernetes_enums.KubernetesPortMode.NODEPORT:
+        _open_ports_using_nodeport(
+            cluster_name_on_cloud=cluster_name_on_cloud,
+            ports=ports,
+            provider_config=provider_config
+        )
     elif port_mode == kubernetes_enums.KubernetesPortMode.PODIP:
         # Do nothing, as PodIP mode does not require opening ports
         pass
@@ -119,6 +125,34 @@ def _open_ports_using_ingress(
     )
 
 
+def _open_ports_using_nodeport(cluster_name_on_cloud: str, ports: List[int], provider_config: Dict[str, Any]) -> None:
+    service_name = f'{cluster_name_on_cloud}-user-ports'
+    service_spec = {
+      'metadata': {
+        'name': service_name,
+        'namespace': provider_config.get('namespace', 'default'),
+      },
+      'spec': {
+        'type': 'NodePort',
+        'selector': {
+          'skypilot-cluster': cluster_name_on_cloud,
+        },
+        'ports': [],
+      },
+    }
+    for port in ports:
+        service_spec['spec']['ports'].append({
+          'port': port,
+          'targetPort': port,
+          'protocol': 'TCP',
+          'name': f'port-{port}',
+        })
+    network_utils.create_or_replace_namespaced_service(
+      namespace=provider_config.get('namespace', 'default'),
+      service_name=service_name,
+      service_spec=service_spec,
+    )
+
 def cleanup_ports(
     cluster_name_on_cloud: str,
     ports: List[str],
@@ -137,6 +171,8 @@ def cleanup_ports(
         _cleanup_ports_for_ingress(cluster_name_on_cloud=cluster_name_on_cloud,
                                    ports=ports,
                                    provider_config=provider_config)
+    elif port_mode == kubernetes_enums.KubernetesPortMode.NODEPORT:
+        _cleanup_ports_for_nodeport(cluster_name_on_cloud=cluster_name_on_cloud, provider_config=provider_config)
     elif port_mode == kubernetes_enums.KubernetesPortMode.PODIP:
         # Do nothing, as PodIP mode does not require opening ports
         pass
@@ -174,6 +210,13 @@ def _cleanup_ports_for_ingress(
         ingress_name=ingress_name,
     )
 
+def _cleanup_ports_for_nodeport(cluster_name_on_cloud: str, provider_config: Dict[str, Any]) -> None:
+    service_name = f'{cluster_name_on_cloud}-user-ports'
+    network_utils.delete_namespaced_service(
+      namespace=provider_config.get('namespace', 'default'),
+      service_name=service_name,
+    )
+
 
 def query_ports(
     cluster_name_on_cloud: str,
@@ -204,6 +247,12 @@ def query_ports(
             return _query_ports_for_podip(
                 cluster_name_on_cloud=cluster_name_on_cloud,
                 ports=ports,
+            )
+        elif port_mode == kubernetes_enums.KubernetesPortMode.NODEPORT:
+            return _query_ports_for_nodeport(
+                cluster_name_on_cloud=cluster_name_on_cloud,
+                ports=ports,
+                provider_config=provider_config,
             )
         else:
             return {}
@@ -279,5 +328,31 @@ def _query_ports_for_podip(
 
     for port in ports:
         result[port] = [common.SocketEndpoint(host=pod_ip, port=port)]
+
+    return result
+
+def _query_ports_for_nodeport(
+    cluster_name_on_cloud: str,
+    ports: List[int],
+    provider_config: Dict[str, Any],
+) -> Dict[int, List[common.Endpoint]]:
+    result: Dict[int, List[common.Endpoint]] = {}
+    service_name = f'{cluster_name_on_cloud}-user-ports'
+    service = network_utils.get_namespaced_service(
+      namespace=provider_config.get('namespace', 'default'),
+      service_name=service_name,
+    )
+    if service is None:
+        return {}
+
+    node_ip = network_utils.get_nodeport_service_external_ip(
+        provider_config.get("namespace", "default"),
+        service_name
+    )
+
+    service_ports = service.spec.ports
+    for service_port in service_ports:
+        port = service_port.port
+        result[port] = [common.SocketEndpoint(host=node_ip, port=service_port.node_port)]
 
     return result
