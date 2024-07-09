@@ -548,6 +548,8 @@ def _launch_with_confirm(
     if cluster is None:
         cluster = backend_utils.generate_cluster_name()
 
+    print(f"cluster: {cluster}")
+
     clone_source_str = ''
     if clone_disk_from is not None:
         clone_source_str = f' from the disk of {clone_disk_from!r}'
@@ -594,6 +596,7 @@ def _launch_with_confirm(
     if not confirm_shown:
         click.secho(f'Running task on cluster {cluster}...', fg='yellow')
 
+    print(f"calling sky.launch")
     sky.launch(
         dag,
         dryrun=dryrun,
@@ -1094,6 +1097,8 @@ def launch(
         disk_tier=disk_tier,
         ports=ports,
     )
+    print("Created a task or dag from entrypoint with overrides")
+    print(task_or_dag)
     if isinstance(task_or_dag, sky.Dag):
         raise click.UsageError(
             _DAG_NOT_SUPPORTED_MESSAGE.format(command='sky launch'))
@@ -1107,6 +1112,8 @@ def launch(
     else:
         with ux_utils.print_exception_no_traceback():
             raise ValueError(f'{backend_name} backend is not supported.')
+        
+    print(f"Backend name: {backend_name}")
 
     if task.service is not None:
         logger.info(
@@ -1116,6 +1123,7 @@ def launch(
             f'{colorama.Style.RESET_ALL}{colorama.Style.BRIGHT}sky serve up'
             f'{colorama.Style.RESET_ALL}')
 
+    print(f"Launching with confirm")
     _launch_with_confirm(task,
                          backend,
                          cluster,
