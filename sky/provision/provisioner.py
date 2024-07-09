@@ -28,6 +28,7 @@ from sky.utils import common_utils
 from sky.utils import resources_utils
 from sky.utils import rich_utils
 from sky.utils import ux_utils
+from sky.utils import kubernetes_enums
 
 # Do not use __name__ as we do not want to propagate logs to sky.provision,
 # which will be customized in sky.provision.logging.
@@ -46,8 +47,10 @@ def _bulk_provision(
     cluster_name: resources_utils.ClusterName,
     bootstrap_config: provision_common.ProvisionConfig,
 ) -> provision_common.ProvisionRecord:
+    print(f"enter _bulk_provision")
     provider_name = repr(cloud)
     region_name = region.name
+    print(f"provider_name: {provider_name}, region_name: {region_name}")
 
     style = colorama.Style
 
@@ -84,6 +87,8 @@ def _bulk_provision(
                          f'{common_utils.format_exception(e)}')
             raise
 
+        print(f"about to call provision.run_instances, provider_name: {provider_name}, region_name: {region_name}, cluster_name.name_on_cloud: {cluster_name.name_on_cloud}")
+        print(f"type(provision): {type(provision)}")
         provision_record = provision.run_instances(provider_name,
                                                    region_name,
                                                    cluster_name.name_on_cloud,
@@ -138,6 +143,7 @@ def bulk_provision(
         Cloud specific exceptions: If the provisioning process failed, cloud-
             specific exceptions will be raised by the cloud APIs.
     """
+    print(f"enter sky.provision.provisioner.bulk_provision")
     original_config = common_utils.read_yaml(cluster_yaml)
     head_node_type = original_config['head_node_type']
     bootstrap_config = provision_common.ProvisionConfig(
@@ -367,6 +373,10 @@ def wait_for_ssh(cluster_info: provision_common.ClusterInfo,
     Raises:
         RuntimeError: If the SSH connection is not ready after timeout.
     """
+    print("enter _wait_for_ssh")
+    print(f"cluster_info.has_external_ips(): {cluster_info.has_external_ips()}")
+    print(f"ssh_credentials.get('ssh_proxy_command'): {ssh_credentials.get('ssh_proxy_command')}")
+    print(f"provider_config: {cluster_info.provider_config}")
     if (cluster_info.has_external_ips() and
             ssh_credentials.get('ssh_proxy_command') is None):
         # If we can access public IPs, then it is more efficient to test SSH
@@ -374,18 +384,41 @@ def wait_for_ssh(cluster_info: provision_common.ClusterInfo,
         waiter = _wait_ssh_connection_direct
     else:
         # See https://github.com/skypilot-org/skypilot/pull/1512
-        # waiter = _wait_ssh_connection_indirect
-        waiter = _wait_ssh_connection_direct
+        waiter = _wait_ssh_connection_indirect
     ip_list = cluster_info.get_feasible_ips()
     port_list = cluster_info.get_ssh_ports()
 
-    ssh_proxy_command = ssh_credentials.get('ssh_proxy_command', None)
-    if ssh_proxy_command:
-        logger.info(f'Using SSH proxy command: {ssh_proxy_command}')
-        ssh_proxy_command_split = ssh_proxy_command.split(' ')
-        real_ssh_port = ssh_proxy_command_split[-2]
-        port_list = [real_ssh_port] * len(ip_list)
-        ssh_credentials.pop('ssh_proxy_command')
+    print(f"ip_list: {ip_list}")
+    print(f"port_list: {port_list}")
+
+    provider_name = cluster_info.provider_name
+    if provider_name == 'kubernetes':
+      network_mode = None
+      network_mode_str = cluster_info.provider_config.get('networking_mode', None)
+      try:
+          network_mode = kubernetes_enums.KubernetesNetworkingMode.from_str(
+              network_mode_str)
+      except ValueError:
+          raise ValueError(
+              f'Unsupported networking mode: {network_mode_str}. The mode must '
+              f'be either \'{kubernetes_enums.KubernetesNetworkingMode.PORTFORWARD.value}\' '
+              f'or \'{kubernetes_enums.KubernetesNetworkingMode.NODEPORT.value}\'. ')
+      
+      logger.info(f"provider_name: {provider_name}, network_mode: {network_mode}")
+
+      if network_mode == kubernetes_enums.KubernetesNetworkingMode.NODEPORT:
+          ssh_proxy_command = ssh_credentials.get('ssh_proxy_command', None)
+          if ssh_proxy_command:
+              logger.info(f'Using SSH proxy command: {ssh_proxy_command}')
+              ssh_proxy_command_split = ssh_proxy_command.strip().split(' ')
+              logger.info(f'ssh_proxy_command_split: {ssh_proxy_command_split}')
+              real_ssh_port = ssh_proxy_command_split[-1]
+              port_list = [real_ssh_port] * len(ip_list)
+              # ssh_credentials.pop('ssh_proxy_command')
+          else:
+              raise ValueError(
+                  'For Kubernetes with NODEPORT networking mode, you must provide '
+                  'a valid ssh_proxy_command in the cluster yaml file.')
 
     logger.info(f'Waiting for SSH to {ip_list} with ports {port_list} ...')
 
@@ -416,6 +449,8 @@ def _post_provision_setup(
         custom_resource: Optional[str]) -> provision_common.ClusterInfo:
     config_from_yaml = common_utils.read_yaml(cluster_yaml)
     provider_config = config_from_yaml.get('provider')
+    logger.info(f"enter _post_provision_setup")
+    logger.info(f"provider_config: {provider_config}")
     cluster_info = provision.get_cluster_info(cloud_name,
                                               provision_record.region,
                                               cluster_name.name_on_cloud,

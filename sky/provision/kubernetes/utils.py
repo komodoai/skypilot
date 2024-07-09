@@ -588,7 +588,8 @@ def get_port(svc_name: str, namespace: str) -> int:
         svc_name, namespace)
     return head_service.spec.ports[0].node_port
 
-
+# TODO(kote): Make external IP work for on-prem clusters.
+# Sample in network_utils: get_nodeport_service_external_ip
 def get_external_ip(
         network_mode: Optional[kubernetes_enums.KubernetesNetworkingMode]):
     if network_mode == kubernetes_enums.KubernetesNetworkingMode.PORTFORWARD:

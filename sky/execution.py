@@ -113,6 +113,7 @@ def _execute(
     _is_launched_by_jobs_controller: bool = False,
     _is_launched_by_sky_serve_controller: bool = False,
 ) -> Tuple[Optional[int], Optional[backends.ResourceHandle]]:
+    print(f"enter _execute with entrypoint: {entrypoint}")
     """Execute an entrypoint.
 
     If sky.Task is given or DAG has not been optimized yet, this will call
@@ -267,6 +268,7 @@ def _execute(
         # Optimizer should eventually choose where to store bucket
         task.sync_storage_mounts()
 
+    print(f"calling backend.provision, backend: {backend}")
     try:
         if Stage.PROVISION in stages:
             if handle is None:
@@ -364,6 +366,7 @@ def launch(
     _is_launched_by_sky_serve_controller: bool = False,
     _disable_controller_check: bool = False,
 ) -> Tuple[Optional[int], Optional[backends.ResourceHandle]]:
+    print(f"enter launch with task: {task}")
     # NOTE(dev): Keep the docstring consistent between the Python API and CLI.
     """Launch a cluster or task.
 
@@ -455,6 +458,7 @@ def launch(
         controller_utils.check_cluster_name_not_controller(
             cluster_name, operation_str='sky.launch')
 
+    print(f"calling _execute")
     return _execute(
         entrypoint=entrypoint,
         dryrun=dryrun,
