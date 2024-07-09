@@ -567,7 +567,9 @@ def get_gpu_label_key_value(acc_type: str, check_mode=False) -> Tuple[str, str]:
 
 
 def get_head_ssh_port(cluster_name: str, namespace: str) -> int:
-    svc_name = f'{cluster_name}-head-ssh'
+    print(f"enter get_head_ssh_port, cluster_name: {cluster_name}, namespace: {namespace}")
+    # svc_name = f'{cluster_name}-head-ssh'
+    svc_name = f'{cluster_name}-head'
     return get_port(svc_name, namespace)
 
 
@@ -579,16 +581,29 @@ def get_port(svc_name: str, namespace: str) -> int:
             different from the cluster name.
         namespace (str): Kubernetes namespace to look for the service in.
     """
+    print(f"enter get_port, svc_name: {svc_name}, namespace: {namespace}")
     head_service = kubernetes.core_api().read_namespaced_service(
         svc_name, namespace)
-    return head_service.spec.ports[0].node_port
+    for port in head_service.spec.ports:
+        if port.port == 22:
+            return port.node_port
+    # print(f"head_service.spec.ports: {head_service.spec.ports}")
+    # return head_service.spec.ports[0].node_port
 
-# TODO(kote): Make external IP work for on-prem clusters.
-# Sample in network_utils: get_nodeport_service_external_ip
 def get_external_ip(
-        network_mode: Optional[kubernetes_enums.KubernetesNetworkingMode]):
+        network_mode: Optional[kubernetes_enums.KubernetesNetworkingMode],
+        cluster_name: Optional[str] = None,
+        namespace: Optional[str] = None) -> str:
+    print(f"enter get_external_ip, network_mode: {network_mode}, cluster_name: {cluster_name}, namespace: {namespace}")
     if network_mode == kubernetes_enums.KubernetesNetworkingMode.PORTFORWARD:
         return '127.0.0.1'
+    if cluster_name and namespace:
+        external_ip = network_utils.get_pod_node_external_ip(
+            namespace, f"{cluster_name}-head"
+        )
+        print(f"external_ip: {external_ip}")
+        return external_ip
+
     # Return the IP address of the first node with an external IP
     nodes = kubernetes.core_api().list_node().items
     for node in nodes:
