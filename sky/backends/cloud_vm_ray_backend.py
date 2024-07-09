@@ -2180,6 +2180,7 @@ class CloudVmRayResourceHandle(backends.backend.ResourceHandle):
     def _update_cluster_info(self):
         # When a cluster is on a cloud that does not support the new
         # provisioner, we should skip updating cluster_info.
+        logger.info("enter _update_cluster_info")
         if (self.launched_resources.cloud.PROVISIONER_VERSION >=
                 clouds.ProvisionerVersion.SKYPILOT):
             provider_name = str(self.launched_resources.cloud).lower()

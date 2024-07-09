@@ -454,7 +454,7 @@ def _create_pods(region: str, cluster_name_on_cloud: str,
     created_pods = {}
     logger.debug(f'run_instances: calling create_namespaced_pod '
                  f'(count={to_start_count}).')
-    for _ in range(to_start_count):
+    for idx in range(to_start_count):
         if head_pod_name is None:
             pod_spec['metadata']['labels'].update(constants.HEAD_NODE_TAGS)
             head_selector = head_service_selector(cluster_name_on_cloud)
@@ -462,6 +462,7 @@ def _create_pods(region: str, cluster_name_on_cloud: str,
             pod_spec['metadata']['name'] = f'{cluster_name_on_cloud}-head'
         else:
             pod_spec['metadata']['labels'].update(constants.WORKER_NODE_TAGS)
+            pod_spec['metadata']['labels']['KOMODO-WORKER-ID'] = f"{cluster_name_on_cloud}-worker-{idx}"
             pod_uuid = str(uuid.uuid4())[:4]
             pod_name = f'{cluster_name_on_cloud}-{pod_uuid}'
             pod_spec['metadata']['name'] = f'{pod_name}-worker'
@@ -503,14 +504,14 @@ def _create_pods(region: str, cluster_name_on_cloud: str,
     networking_mode = network_utils.get_networking_mode(
         config.provider_config.get('networking_mode'))
     logger.info(f"networking_mode: {networking_mode}")
-    if networking_mode == kubernetes_enums.KubernetesNetworkingMode.NODEPORT:
-        # Adding the jump pod to the new_nodes list as well so it can be
-        # checked if it's scheduled and running along with other pods.
-        ssh_jump_pod_name = pod_spec['metadata']['labels']['skypilot-ssh-jump']
-        logger.info(f"ssh_jump_pod_name: {ssh_jump_pod_name}")
-        jump_pod = kubernetes.core_api().read_namespaced_pod(
-            ssh_jump_pod_name, namespace)
-        wait_pods.append(jump_pod)
+    # if networking_mode == kubernetes_enums.KubernetesNetworkingMode.NODEPORT:
+    #     # Adding the jump pod to the new_nodes list as well so it can be
+    #     # checked if it's scheduled and running along with other pods.
+    #     ssh_jump_pod_name = pod_spec['metadata']['labels']['skypilot-ssh-jump']
+    #     logger.info(f"ssh_jump_pod_name: {ssh_jump_pod_name}")
+    #     jump_pod = kubernetes.core_api().read_namespaced_pod(
+    #         ssh_jump_pod_name, namespace)
+    #     wait_pods.append(jump_pod)
     provision_timeout = provider_config['timeout']
 
     wait_str = ('indefinitely'
@@ -605,6 +606,16 @@ def _terminate_node(namespace: str, pod_name: str) -> None:
         logger.warning('terminate_instances: Error occurred when analyzing '
                        f'SSH Jump pod: {e}')
     try:
+        pod = kubernetes.core_api().read_namespaced_pod(pod_name, namespace)
+        komodo_worker_label = pod.metadata.labels.get('KOMODO-WORKER-ID', None)
+        if komodo_worker_label:
+            komodo_worker_service = kubernetes.core_api().read_namespaced_service(
+                komodo_worker_label,
+                namespace
+            )
+            if komodo_worker_service:
+                kubernetes.core_api().delete_namespaced_service(
+                    komodo_worker_service.metadata.name, namespace)
         kubernetes.core_api().delete_namespaced_service(
             pod_name, namespace, _request_timeout=config_lib.DELETION_TIMEOUT)
         kubernetes.core_api().delete_namespaced_service(
@@ -639,6 +650,10 @@ def terminate_instances(
     }
     pods = _filter_pods(namespace, tag_filters, None)
 
+    print(f"terminate_instances: cluster_name_on_cloud: {cluster_name_on_cloud}")
+    pod_names = [pod.metadata.name for pod in pods.values()]
+    print(f"terminate_instances: pods: {pod_names}")
+
     def _is_head(pod) -> bool:
         return pod.metadata.labels[constants.TAG_RAY_NODE_KIND] == 'head'
 
@@ -664,34 +679,49 @@ def get_cluster_info(
     pods: Dict[str, List[common.InstanceInfo]] = {}
     head_pod_name = None
 
-    logger.info(f"enter sky.provision.kubernetes.instance.get_cluster_info")
+    print(f"enter sky.provision.kubernetes.instance.get_cluster_info")
+    print(f"cluster_name_on_cloud: {cluster_name_on_cloud}")
 
     port_forward_mode = kubernetes_enums.KubernetesNetworkingMode.PORTFORWARD
     network_mode_str = skypilot_config.get_nested(('kubernetes', 'networking'),
                                                   port_forward_mode.value)
-    logger.info(f"network_mode_str from skypilot_config: {network_mode_str}")
     network_mode = kubernetes_enums.KubernetesNetworkingMode.from_str(
         network_mode_str)
-    logger.info(f"network_mode: {network_mode}")
-    logger.info("skypilot_config")
-    logger.info(skypilot_config.to_dict())
-    external_ip = kubernetes_utils.get_external_ip(network_mode)
+    print(f"network_mode: {network_mode}")
+    print("skypilot_config")
+    print(skypilot_config.to_dict())
+    external_ip = kubernetes_utils.get_external_ip(network_mode, cluster_name_on_cloud, namespace)
+    print(f"external_ip: {external_ip}")
     port = 22
     if not provider_config.get('use_internal_ips', False):
+        print(f"use_internal_ips: {provider_config.get('use_internal_ips', False)}")
         port = kubernetes_utils.get_head_ssh_port(cluster_name_on_cloud,
                                                   namespace)
+        print(f"port: {port}")
 
     head_pod_name = None
     cpu_request = None
+    head_node_ssh_port = port
     for pod_name, pod in running_pods.items():
+        print(f"pod_name: {pod_name}")
         internal_ip = pod.status.pod_ip
+        external_ip = network_utils.get_pod_node_external_ip(namespace, pod_name)
+        print(f"got external ip for pod {pod_name}: {external_ip}")
+        komodo_worker_id = pod.metadata.labels.get("KOMODO-WORKER-ID", None)
+        pod_ssh_port = head_node_ssh_port
+        if komodo_worker_id:
+            pod_ssh_port = kubernetes_utils.get_port(
+                pod.metadata.labels["KOMODO-WORKER-ID"], namespace
+            )
+        print(f"got port for pod {pod_name}: {pod_ssh_port}")
         pods[pod_name] = [
             common.InstanceInfo(
                 instance_id=pod_name,
                 internal_ip=internal_ip,
-                external_ip=(None if network_mode == port_forward_mode else
-                             external_ip),
-                ssh_port=port,
+                external_ip=(
+                    None if network_mode == port_forward_mode else external_ip
+                ),
+                ssh_port=pod_ssh_port,
                 tags=pod.metadata.labels,
             )
         ]

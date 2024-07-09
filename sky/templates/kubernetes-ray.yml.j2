@@ -201,22 +201,6 @@ provider:
             apiGroup: rbac.authorization.k8s.io
 
     services:
-      # Service to expose the head node pod's SSH port.
-      - apiVersion: v1
-        kind: Service
-        metadata:
-          labels:
-            parent: skypilot
-            skypilot-cluster: {{cluster_name_on_cloud}}
-            skypilot-user: {{ user }}
-          name: {{cluster_name_on_cloud}}-head-ssh
-        spec:
-          selector:
-            component: {{cluster_name_on_cloud}}-head
-          ports:
-            - protocol: TCP
-              port: 22
-              targetPort: 22
       # Service that maps to the head node of the Ray cluster.
       - apiVersion: v1
         kind: Service
@@ -233,6 +217,8 @@ provider:
             # This selector must match the head node pod's selector below.
             selector:
                 component: {{cluster_name_on_cloud}}-head
+                ray-node-type: head
+            type: {{"NodePort" if k8s_networking_mode == 'nodeport' else "ClusterIP"}}
             ports:
                 - name: client
                   protocol: TCP
@@ -242,6 +228,41 @@ provider:
                   protocol: TCP
                   port: 8265
                   targetPort: 8265
+                - name: ssh
+                  protocol: TCP
+                  port: 22
+                  targetPort: 22
+      {% if k8s_networking_mode == 'nodeport' %}
+      {%- for idx in range(1, num_nodes) -%}
+      # Service that maps to the worker node of the Ray cluster.
+      - apiVersion: v1
+        kind: Service
+        metadata:
+            labels:
+              parent: skypilot
+              skypilot-cluster: {{cluster_name_on_cloud}}
+              skypilot-user: {{ user }}
+              KOMODO-WORKER-ID: {{cluster_name_on_cloud}}-worker-{{idx}}
+            name: {{cluster_name_on_cloud}}-worker-{{idx}}
+        spec:
+            selector:
+                KOMODO-WORKER-ID: {{cluster_name_on_cloud}}-worker-{{idx}}
+            type: NodePort
+            ports:
+                - name: client
+                  protocol: TCP
+                  port: 10001
+                  targetPort: 10001
+                - name: dashboard
+                  protocol: TCP
+                  port: 8265
+                  targetPort: 8265
+                - name: ssh
+                  protocol: TCP
+                  port: 22
+                  targetPort: 22
+      {% endfor %}
+      {% endif %}
 
 # Specify the pod type for the ray head node (as configured below).
 head_node_type: ray_head_default
