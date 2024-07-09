@@ -460,7 +460,7 @@ def add_or_update_replica(service_name: str, replica_id: int,
         zone = None
         instance_type = None
         accelerators = None
-        ports = None
+        ports = json.dumps([])
         disk_size = None
         spot = None
         if handle:
@@ -473,16 +473,22 @@ def add_or_update_replica(service_name: str, replica_id: int,
             instance_type = launched_resources.instance_type
             accelerators = ','.join([f'{acc}:{count}' for acc, count in launched_resources.accelerators.items()]) if launched_resources.accelerators else None
             ports = ','.join(launched_resources.ports)
+
+            endpoints = {}
+            if launched_resources.ports:
+                endpoints = sky.core.endpoints(handle.cluster_name)
+            ports = [{'port': port, 'endpoint': endpoint} for port, endpoint in endpoints.items()]
+            ports = json.dumps(ports)
             disk_size = launched_resources.disk_size
             spot = launched_resources.use_spot
 
         d.update({'status_property': d['status_property'].to_dict()})
         ri = json.dumps(d)
 
-        query = text("""
+        query = text(f"""
           INSERT INTO replicas
           (service_id, replica_id, replica_info, skypilot_cluster_id, cloud, region, zone, instance_type, accelerators, ports, disk_size, spot)
-          VALUES (:service_id, :replica_id, :replica_info, :skypilot_cluster_id, :cloud, :region, :zone, :instance_type, :accelerators, :ports, :disk_size, :spot)
+          VALUES (:service_id, :replica_id, :replica_info, :skypilot_cluster_id, :cloud, :region, :zone, :instance_type, :accelerators, '{ports}'::json, :disk_size, :spot)
           ON CONFLICT (service_id, replica_id)
           DO UPDATE SET replica_info=EXCLUDED.replica_info,
                         skypilot_cluster_id=EXCLUDED.skypilot_cluster_id,
@@ -507,7 +513,6 @@ def add_or_update_replica(service_name: str, replica_id: int,
                 "zone": zone,
                 "instance_type": instance_type,
                 "accelerators": accelerators,
-                "ports": ports,
                 "disk_size": disk_size,
                 "spot": spot,
             },
