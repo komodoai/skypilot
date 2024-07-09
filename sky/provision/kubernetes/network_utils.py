@@ -47,9 +47,11 @@ def get_networking_mode(
     mode_str: Optional[str] = None
 ) -> kubernetes_enums.KubernetesNetworkingMode:
     """Get the networking mode from the provider config."""
+    print("enter get_networking_mode")
     mode_str = mode_str or skypilot_config.get_nested(
-        ('kubernetes', 'networking_mode'),
+        ('kubernetes', 'networking'),
         kubernetes_enums.KubernetesNetworkingMode.PORTFORWARD.value)
+    print(f"mode_str: {mode_str}")
     try:
         networking_mode = kubernetes_enums.KubernetesNetworkingMode.from_str(
             mode_str)
@@ -57,6 +59,7 @@ def get_networking_mode(
         with ux_utils.print_exception_no_traceback():
             raise ValueError(str(e) +
                              ' Please check: ~/.sky/config.yaml.') from None
+    print(f"returning networking_mode: {networking_mode}")
     return networking_mode
 
 

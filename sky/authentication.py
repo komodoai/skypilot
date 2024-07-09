@@ -488,8 +488,6 @@ def setup_kubernetes_authentication(config: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError(f'Unsupported networking mode: {network_mode_str}')
     config['auth']['ssh_proxy_command'] = ssh_proxy_cmd
 
-    logger.info("config")
-    logger.info(config)
     logger.info("exit setup_kubernetes_authentication")
 
     return config

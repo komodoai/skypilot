@@ -17,6 +17,7 @@ def open_ports(
     ports: List[str],
     provider_config: Optional[Dict[str, Any]] = None,
 ) -> None:
+    print(f"enter kubernetes.network.open_ports, cluster_name_on_cloud: {cluster_name_on_cloud}, ports: {ports}")
     """See sky/provision/__init__.py"""
     assert provider_config is not None, 'provider_config is required'
     port_mode = network_utils.get_port_mode(

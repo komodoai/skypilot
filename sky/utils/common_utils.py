@@ -642,6 +642,7 @@ def get_cleaned_username(username: str = '') -> str:
 def fill_template(template_name: str, variables: Dict,
                   output_path: str) -> None:
     """Create a file from a Jinja template and return the filename."""
+    print(f"enter _fill_template, template_name: {template_name}, variables: {variables}, output_path: {output_path}")
     assert template_name.endswith('.j2'), template_name
     root_dir = os.path.dirname(os.path.dirname(__file__))
     template_path = os.path.join(root_dir, 'templates', template_name)

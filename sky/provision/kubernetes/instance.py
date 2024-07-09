@@ -380,6 +380,7 @@ def _label_pod(namespace: str, pod_name: str, label: Dict[str, str]) -> None:
 def _create_pods(region: str, cluster_name_on_cloud: str,
                  config: common.ProvisionConfig) -> common.ProvisionRecord:
     """Create pods based on the config."""
+    logger.info(f"enter _create_pods, region: {region}, cluster_name_on_cloud: {cluster_name_on_cloud}")
     provider_config = config.provider_config
     namespace = _get_namespace(provider_config)
     pod_spec = copy.deepcopy(config.node_config)
@@ -501,10 +502,12 @@ def _create_pods(region: str, cluster_name_on_cloud: str,
 
     networking_mode = network_utils.get_networking_mode(
         config.provider_config.get('networking_mode'))
+    logger.info(f"networking_mode: {networking_mode}")
     if networking_mode == kubernetes_enums.KubernetesNetworkingMode.NODEPORT:
         # Adding the jump pod to the new_nodes list as well so it can be
         # checked if it's scheduled and running along with other pods.
         ssh_jump_pod_name = pod_spec['metadata']['labels']['skypilot-ssh-jump']
+        logger.info(f"ssh_jump_pod_name: {ssh_jump_pod_name}")
         jump_pod = kubernetes.core_api().read_namespaced_pod(
             ssh_jump_pod_name, namespace)
         wait_pods.append(jump_pod)
@@ -572,6 +575,7 @@ def _create_pods(region: str, cluster_name_on_cloud: str,
 def run_instances(region: str, cluster_name_on_cloud: str,
                   config: common.ProvisionConfig) -> common.ProvisionRecord:
     """Runs instances for the given cluster."""
+    logger.info(f"enter sky.provision.kubernetes.instance.run_instances, region: {region}, cluster_name_on_cloud: {cluster_name_on_cloud}")
     try:
         return _create_pods(region, cluster_name_on_cloud, config)
     except (kubernetes.api_exception(), config_lib.KubernetesError) as e:
@@ -660,11 +664,17 @@ def get_cluster_info(
     pods: Dict[str, List[common.InstanceInfo]] = {}
     head_pod_name = None
 
+    logger.info(f"enter sky.provision.kubernetes.instance.get_cluster_info")
+
     port_forward_mode = kubernetes_enums.KubernetesNetworkingMode.PORTFORWARD
     network_mode_str = skypilot_config.get_nested(('kubernetes', 'networking'),
                                                   port_forward_mode.value)
+    logger.info(f"network_mode_str from skypilot_config: {network_mode_str}")
     network_mode = kubernetes_enums.KubernetesNetworkingMode.from_str(
         network_mode_str)
+    logger.info(f"network_mode: {network_mode}")
+    logger.info("skypilot_config")
+    logger.info(skypilot_config.to_dict())
     external_ip = kubernetes_utils.get_external_ip(network_mode)
     port = 22
     if not provider_config.get('use_internal_ips', False):
