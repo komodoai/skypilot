@@ -256,7 +256,6 @@ def query_ports(
             return _query_ports_for_nodeport(
                 cluster_name_on_cloud=cluster_name_on_cloud,
                 ports=ports,
-                provider_config=provider_config,
             )
         else:
             return {}
@@ -343,21 +342,24 @@ def _query_ports_for_podip(
 def _query_ports_for_nodeport(
     cluster_name_on_cloud: str,
     ports: List[int],
-    provider_config: Dict[str, Any],
 ) -> Dict[int, List[common.Endpoint]]:
+    namespace = kubernetes_utils.get_current_kube_config_context_namespace()
+    head_pod_name = kubernetes_utils.get_head_pod_name(cluster_name_on_cloud)
+
     result: Dict[int, List[common.Endpoint]] = {}
+
     service_name = f'{cluster_name_on_cloud}-user-ports'
     service = network_utils.get_namespaced_service(
-      namespace=provider_config.get('namespace', 'default'),
+      namespace=namespace,
       service_name=service_name,
     )
     if service is None:
         return {}
 
     try:
-      node_ip = network_utils.get_nodeport_service_external_ip(
-          provider_config.get("namespace", "default"),
-          service_name
+      node_ip = network_utils.get_pod_node_external_ip(
+          namespace,
+          head_pod_name,
       )
     except Exception:
         return {}
@@ -365,6 +367,8 @@ def _query_ports_for_nodeport(
     service_ports = service.spec.ports
     for service_port in service_ports:
         port = service_port.port
+        if port not in ports:
+            continue
         result[port] = [common.SocketEndpoint(host=node_ip, port=service_port.node_port)]
 
     return result
