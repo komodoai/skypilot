@@ -450,24 +450,7 @@ def setup_kubernetes_authentication(config: Dict[str, Any]) -> Dict[str, Any]:
     private_key_path, _ = get_or_generate_keys()
     logger.info("private_key_path: %s", private_key_path)
     if network_mode == nodeport_mode:
-        # ssh_jump_name = clouds.Kubernetes.SKY_SSH_JUMP_NAME
-        ssh_jump_name = config["cluster_name"] + "-head"
-        service_type = kubernetes_enums.KubernetesServiceType.NODEPORT
-        logger.info("ssh_jump_name: %s", ssh_jump_name)
-        logger.info("service_type: %s", service_type)
-        # Setup service for SSH jump pod. We create the SSH jump service here
-        # because we need to know the service IP address and port to set the
-        # ssh_proxy_command in the autoscaler config.
-        kubernetes_utils.setup_ssh_jump_svc(ssh_jump_name, namespace,
-                                            service_type)
-        logger.info("ssh_jump_svc setup done")
-        logger.info("getting ssh_proxy_cmd")
-        ssh_proxy_cmd = kubernetes_utils.get_ssh_proxy_command(
-            ssh_jump_name,
-            nodeport_mode,
-            private_key_path=private_key_path,
-            namespace=namespace)
-        logger.info("ssh_proxy_cmd: %s", ssh_proxy_cmd)
+      ssh_proxy_cmd = None
     elif network_mode == port_forward_mode:
         # Using `kubectl port-forward` creates a direct tunnel to the pod and
         # does not require a ssh jump pod.

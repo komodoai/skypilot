@@ -30,7 +30,8 @@ def bootstrap_instances(
     networking_mode = network_utils.get_networking_mode(
         config.provider_config.get('networking_mode'))
     if networking_mode == kubernetes_enums.KubernetesNetworkingMode.NODEPORT:
-        config = _configure_ssh_jump(namespace, config)
+        pass
+        # config = _configure_ssh_jump(namespace, config)
 
     requested_service_account = config.node_config['spec']['serviceAccountName']
     if (requested_service_account ==
@@ -638,15 +639,6 @@ def _configure_services(namespace: str, provider_config: Dict[str,
         else:
             logger.info(
                 f'_configure_services: {not_found_msg("service", name)}')
-            if 'head' in service['metadata']['name'] and 'ssh' not in service['metadata']['name']:
-              logger.info('Adding ssh port to head service')
-              service['spec']['type'] = 'NodePort'
-              service['spec']['ports'].append({'name': 'ssh', 'port': 22, 'targetPort': 22, 'protocol': 'TCP'})
-              for port in service['spec']['ports']:
-                if 'name' not in port:
-                  logger.info(f"port {port} does not have a name, setting it to port")
-                  port['name'] = port['port']
-            logger.info(service)
             kubernetes.core_api().create_namespaced_service(namespace, service)
             logger.info(f'_configure_services: {created_msg("service", name)}')
 
