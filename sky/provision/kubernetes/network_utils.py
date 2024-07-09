@@ -273,20 +273,18 @@ def get_namespaced_service(namespace: str, service_name: str) -> Dict:
         service_name, namespace, _request_timeout=kubernetes.API_TIMEOUT
     )
 
-def get_nodeport_service_external_ip(namespace: str, service_name: str) -> str:
-    """Returns the external IP address of the nodeport service."""
+def get_pod_node_external_ip(namespace: str, head_pod_name: str) -> str:
+    """Returns the external IP address of the node that the head pod is running on"""
     core_api = kubernetes.core_api()
-    service = core_api.read_namespaced_service(service_name, namespace, _request_timeout=kubernetes.API_TIMEOUT)
-    label_selector = service.spec.selector
-    label_selector_str = ",".join([f"{key}={value}" for key, value in label_selector.items()])
-    pods = core_api.list_namespaced_pod(
-        namespace=namespace, label_selector=label_selector_str
+
+    pod = core_api.read_namespaced_pod(
+        name=head_pod_name, namespace=namespace,
     )
-    if not pods.items:
+    if not pod:
         raise Exception(
-            f'No pods found with label selector: {label_selector_str}'
+            f'Head pod {head_pod_name} not found'
         )
-    node_name = pods.items[0].spec.node_name
+    node_name = pod.spec.node_name
     node = core_api.read_node(name=node_name)
 
     external_ip = None
