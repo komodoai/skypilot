@@ -30,7 +30,7 @@ provider:
     # We use internal IPs since we set up a port-forward between the kubernetes
     # cluster and the local machine, or directly use NodePort to reach the
     # head node.
-    use_internal_ips: true
+    use_internal_ips: {{ false if k8s_networking_mode == 'nodeport' else true }}
 
     timeout: {{timeout}}
 
