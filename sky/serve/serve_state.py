@@ -445,7 +445,7 @@ def get_glob_service_names(
                 rows.extend(cursor.execute(query).fetchall())
     return list({row[0] for row in rows})
 
-def _sky_instance_to_ssh_info(ssh_user: str, instance: sky.provision.common.InstanceInfo, role: str):
+def _sky_instance_to_ssh_info(instance: sky.provision.common.InstanceInfo, role: str):
     ip_address = instance.get_feasible_ip()
     ssh_port = instance.ssh_port
 
@@ -453,7 +453,6 @@ def _sky_instance_to_ssh_info(ssh_user: str, instance: sky.provision.common.Inst
         'role': role,
         'ip_address': ip_address,
         'ssh_port': ssh_port,
-        'ssh_user': ssh_user,
     }
 
     return ssh_info
@@ -497,17 +496,48 @@ def add_or_update_replica(service_name: str, replica_id: int,
 
             cluster_info: Optional[sky.provision.common.ClusterInfo] = handle.cached_cluster_info
             ssh_info = []
+            ssh_user = None
             if cluster_info:
+                # new skypilot provisioner
                 ssh_user = cluster_info.ssh_user
-                if not ssh_user:
-                    ssh_user = sky.utils.common_utils.read_yaml(handle.cluster_yaml).get('auth', {}).get('ssh_user', None)
 
                 head_instance = cluster_info.get_head_instance()
-                ssh_info.append(_sky_instance_to_ssh_info(ssh_user, head_instance, 'head'))
+                ssh_info.append(_sky_instance_to_ssh_info(head_instance, "head"))
 
                 worker_instances = cluster_info.get_worker_instances()
-                for i,worker_instance in enumerate(worker_instances):
-                    ssh_info.append(_sky_instance_to_ssh_info(ssh_user, worker_instance, f'worker-{i+1}'))
+                for i, worker_instance in enumerate(worker_instances):
+                    ssh_info.append(
+                        _sky_instance_to_ssh_info(
+                            worker_instance, f"worker-{i+1}"
+                        )
+                    )
+            else:
+                # old skypilot provisioner
+                ip_list = handle.external_ips()
+                ssh_ports = handle.external_ssh_ports()
+
+                for i, (ip_address, ssh_port) in enumerate(zip(ip_list, ssh_ports)):
+                    if i == 0:
+                        role = "head"
+                    else:
+                        role = f"worker-{i}"
+                    ssh_info.append(
+                        {
+                            "role": role,
+                            "ip_address": ip_address,
+                            "ssh_port": ssh_port,
+                        }
+                    )
+
+            if not ssh_user:
+                ssh_user = (
+                    sky.utils.common_utils.read_yaml(handle.cluster_yaml)
+                    .get("auth", {})
+                    .get("ssh_user", None)
+                )
+            
+            for info in ssh_info:
+                info['ssh_user'] = ssh_user
             ssh_info = json.dumps(ssh_info)
 
         d.update({'status_property': d['status_property'].to_dict()})
