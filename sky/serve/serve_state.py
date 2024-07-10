@@ -499,6 +499,9 @@ def add_or_update_replica(service_name: str, replica_id: int,
             ssh_info = []
             if cluster_info:
                 ssh_user = cluster_info.ssh_user
+                if not ssh_user:
+                    ssh_user = sky.utils.common_utils.read_yaml(handle.cluster_yaml).get('auth', {}).get('ssh_user', None)
+
                 head_instance = cluster_info.get_head_instance()
                 ssh_info.append(_sky_instance_to_ssh_info(ssh_user, head_instance, 'head'))
 
