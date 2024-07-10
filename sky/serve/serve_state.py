@@ -445,6 +445,18 @@ def get_glob_service_names(
                 rows.extend(cursor.execute(query).fetchall())
     return list({row[0] for row in rows})
 
+def _sky_instance_to_ssh_info(ssh_user: str, instance: sky.provision.common.InstanceInfo, role: str):
+    ip_address = instance.get_feasible_ip()
+    ssh_port = instance.ssh_port
+
+    ssh_info = {
+        'role': role,
+        'ip_address': ip_address,
+        'ssh_port': ssh_port,
+        'ssh_user': ssh_user,
+    }
+
+    return ssh_info
 
 # === Replica functions ===
 def add_or_update_replica(service_name: str, replica_id: int,
@@ -463,6 +475,7 @@ def add_or_update_replica(service_name: str, replica_id: int,
         ports = json.dumps([])
         disk_size = None
         spot = None
+        ssh_info = json.dumps([])
         if handle:
             launched_resources: sky.Resources = handle.launched_resources
             cloud = launched_resources.cloud._REPR.upper() if launched_resources.cloud else None
@@ -482,13 +495,24 @@ def add_or_update_replica(service_name: str, replica_id: int,
             disk_size = launched_resources.disk_size
             spot = launched_resources.use_spot
 
+            cluster_info: Optional[sky.provision.common.ClusterInfo] = handle.cached_cluster_info
+            ssh_info = []
+            if cluster_info:
+                ssh_user = cluster_info.ssh_user
+                head_instance = cluster_info.get_head_instance()
+                ssh_info.append(_sky_instance_to_ssh_info(ssh_user, head_instance, 'head'))
+
+                worker_instances = cluster_info.get_worker_instances()
+                for i,worker_instance in enumerate(worker_instances):
+                    ssh_info.append(_sky_instance_to_ssh_info(ssh_user, worker_instance, f'worker-{i}'))
+
         d.update({'status_property': d['status_property'].to_dict()})
         ri = json.dumps(d)
 
         query = text(f"""
           INSERT INTO replicas
-          (service_id, replica_id, replica_info, skypilot_cluster_id, cloud, region, zone, instance_type, accelerators, ports, disk_size, spot)
-          VALUES (:service_id, :replica_id, :replica_info, :skypilot_cluster_id, :cloud, :region, :zone, :instance_type, :accelerators, '{ports}'::json, :disk_size, :spot)
+          (service_id, replica_id, replica_info, skypilot_cluster_id, cloud, region, zone, instance_type, accelerators, ports, disk_size, spot, ssh_info)
+          VALUES (:service_id, :replica_id, :replica_info, :skypilot_cluster_id, :cloud, :region, :zone, :instance_type, :accelerators, '{ports}'::json, :disk_size, :spot, '{ssh_info}'::json)
           ON CONFLICT (service_id, replica_id)
           DO UPDATE SET replica_info=EXCLUDED.replica_info,
                         skypilot_cluster_id=EXCLUDED.skypilot_cluster_id,
