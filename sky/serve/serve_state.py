@@ -505,6 +505,7 @@ def add_or_update_replica(service_name: str, replica_id: int,
                 worker_instances = cluster_info.get_worker_instances()
                 for i,worker_instance in enumerate(worker_instances):
                     ssh_info.append(_sky_instance_to_ssh_info(ssh_user, worker_instance, f'worker-{i+1}'))
+            ssh_info = json.dumps(ssh_info)
 
         d.update({'status_property': d['status_property'].to_dict()})
         ri = json.dumps(d)
