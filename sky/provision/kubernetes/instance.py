@@ -449,7 +449,8 @@ def _create_pods(region: str, cluster_name_on_cloud: str,
                        'For more details, refer to https://skypilot.readthedocs.io/en/latest/reference/config.html')  # pylint: disable=line-too-long
 
     if nvidia_runtime_exists:
-        pod_spec['spec']['runtimeClassName'] = 'nvidia'
+        # pod_spec['spec']['runtimeClassName'] = 'nvidia'
+        pass
 
     created_pods = {}
     logger.debug(f'run_instances: calling create_namespaced_pod '
