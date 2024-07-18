@@ -1,5 +1,6 @@
 """Kubernetes instance provisioning."""
 import copy
+import os
 import time
 from typing import Any, Dict, List, Optional
 import uuid
@@ -451,6 +452,12 @@ def _create_pods(region: str, cluster_name_on_cloud: str,
     if nvidia_runtime_exists:
         # pod_spec['spec']['runtimeClassName'] = 'nvidia'
         pass
+
+    # TODO: (hack): set dnsPolicy of the pod to "Default" so that it inherits the DNS servers
+    # of the node its running on vs using CoreDNS. This can affect communication with other services
+    # on the cluster.
+    if os.environ.get("KOMODO_POD_DNS_POLICY", None) == "Default":
+      pod_spec['spec']['dnsPolicy'] = 'Default'
 
     created_pods = {}
     logger.debug(f'run_instances: calling create_namespaced_pod '
