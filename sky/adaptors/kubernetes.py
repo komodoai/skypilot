@@ -96,7 +96,7 @@ def _load_config():
     _configured = True
 
 
-@_api_logging_decorator('urllib3', logging.ERROR)
+# @_api_logging_decorator('urllib3', logging.ERROR)
 def core_api():
     global _core_api
     if _core_api is None:
@@ -105,7 +105,7 @@ def core_api():
     return _core_api
 
 
-@_api_logging_decorator('urllib3', logging.ERROR)
+# @_api_logging_decorator('urllib3', logging.ERROR)
 def auth_api():
     global _auth_api
     if _auth_api is None:
@@ -115,7 +115,7 @@ def auth_api():
     return _auth_api
 
 
-@_api_logging_decorator('urllib3', logging.ERROR)
+# @_api_logging_decorator('urllib3', logging.ERROR)
 def networking_api():
     global _networking_api
     if _networking_api is None:
@@ -125,7 +125,7 @@ def networking_api():
     return _networking_api
 
 
-@_api_logging_decorator('urllib3', logging.ERROR)
+# @_api_logging_decorator('urllib3', logging.ERROR)
 def custom_objects_api():
     global _custom_objects_api
     if _custom_objects_api is None:
@@ -135,7 +135,7 @@ def custom_objects_api():
     return _custom_objects_api
 
 
-@_api_logging_decorator('urllib3', logging.ERROR)
+# @_api_logging_decorator('urllib3', logging.ERROR)
 def node_api():
     global _node_api
     if _node_api is None:
@@ -145,7 +145,7 @@ def node_api():
     return _node_api
 
 
-@_api_logging_decorator('urllib3', logging.ERROR)
+# @_api_logging_decorator('urllib3', logging.ERROR)
 def apps_api():
     global _apps_api
     if _apps_api is None:
@@ -155,7 +155,7 @@ def apps_api():
     return _apps_api
 
 
-@_api_logging_decorator('urllib3', logging.ERROR)
+# @_api_logging_decorator('urllib3', logging.ERROR)
 def api_client():
     global _api_client
     if _api_client is None:
