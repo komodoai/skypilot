@@ -277,7 +277,7 @@ setuptools.setup(
     long_description_content_type='text/markdown',
     setup_requires=['wheel'],
     requires_python='>=3.7',
-    install_requires=install_requires + aws_dependencies + local_ray + extras_require['gcp'] + extras_require['runpod'],
+    install_requires=install_requires + aws_dependencies + local_ray + extras_require['gcp'] + extras_require['runpod'] + extras_require['azure'],
     extras_require=extras_require,
     entry_points={
         'console_scripts': ['sky = sky.cli:cli'],
