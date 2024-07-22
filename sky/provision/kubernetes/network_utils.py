@@ -273,7 +273,6 @@ def get_namespaced_service(namespace: str, service_name: str) -> Dict:
 
 def get_pod_node_external_ip(namespace: str, pod_name: str) -> str:
     """Returns the external IP address of the node that the head pod is running on"""
-    print(f"enter get_pod_node_external_ip, pod_name: {pod_name}, namespace: {namespace}")
     core_api = kubernetes.core_api()
 
     pod = core_api.read_namespaced_pod(
@@ -284,9 +283,7 @@ def get_pod_node_external_ip(namespace: str, pod_name: str) -> str:
             f'Head pod {pod_name} not found'
         )
     node_name = pod.spec.node_name
-    print(f"node_name: {node_name}")
     node = core_api.read_node(name=node_name)
-    print(f"node is not None: {node is not None}")
 
     external_ip = None
     # Try to get the external IP from node status addresses
@@ -303,7 +300,5 @@ def get_pod_node_external_ip(namespace: str, pod_name: str) -> str:
             f'No external IP found for node: {node_name}'
         )
     
-    print(f"returning from get_pod_node_external_ip, external_ip: {external_ip}")
-
     # Try to get the external IP from node status addresses
     return external_ip

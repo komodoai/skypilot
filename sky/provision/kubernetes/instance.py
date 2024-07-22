@@ -381,7 +381,6 @@ def _label_pod(namespace: str, pod_name: str, label: Dict[str, str]) -> None:
 def _create_pods(region: str, cluster_name_on_cloud: str,
                  config: common.ProvisionConfig) -> common.ProvisionRecord:
     """Create pods based on the config."""
-    logger.info(f"enter _create_pods, region: {region}, cluster_name_on_cloud: {cluster_name_on_cloud}")
     provider_config = config.provider_config
     namespace = _get_namespace(provider_config)
     pod_spec = copy.deepcopy(config.node_config)
@@ -453,12 +452,6 @@ def _create_pods(region: str, cluster_name_on_cloud: str,
         # pod_spec['spec']['runtimeClassName'] = 'nvidia'
         pass
 
-    # TODO: (hack): set dnsPolicy of the pod to "Default" so that it inherits the DNS servers
-    # of the node its running on vs using CoreDNS. This can affect communication with other services
-    # on the cluster.
-    if os.environ.get("KOMODO_POD_DNS_POLICY", None) == "Default":
-      pod_spec['spec']['dnsPolicy'] = 'Default'
-
     created_pods = {}
     logger.debug(f'run_instances: calling create_namespaced_pod '
                  f'(count={to_start_count}).')
@@ -511,7 +504,6 @@ def _create_pods(region: str, cluster_name_on_cloud: str,
 
     networking_mode = network_utils.get_networking_mode(
         config.provider_config.get('networking_mode'))
-    logger.info(f"networking_mode: {networking_mode}")
     # if networking_mode == kubernetes_enums.KubernetesNetworkingMode.NODEPORT:
     #     # Adding the jump pod to the new_nodes list as well so it can be
     #     # checked if it's scheduled and running along with other pods.
@@ -584,7 +576,6 @@ def _create_pods(region: str, cluster_name_on_cloud: str,
 def run_instances(region: str, cluster_name_on_cloud: str,
                   config: common.ProvisionConfig) -> common.ProvisionRecord:
     """Runs instances for the given cluster."""
-    logger.info(f"enter sky.provision.kubernetes.instance.run_instances, region: {region}, cluster_name_on_cloud: {cluster_name_on_cloud}")
     try:
         return _create_pods(region, cluster_name_on_cloud, config)
     except (kubernetes.api_exception(), config_lib.KubernetesError) as e:
@@ -658,9 +649,7 @@ def terminate_instances(
     }
     pods = _filter_pods(namespace, tag_filters, None)
 
-    print(f"terminate_instances: cluster_name_on_cloud: {cluster_name_on_cloud}")
     pod_names = [pod.metadata.name for pod in pods.values()]
-    print(f"terminate_instances: pods: {pod_names}")
 
     def _is_head(pod) -> bool:
         return pod.metadata.labels[TAG_RAY_NODE_KIND] == 'head'
@@ -687,41 +676,29 @@ def get_cluster_info(
     pods: Dict[str, List[common.InstanceInfo]] = {}
     head_pod_name = None
 
-    print(f"enter sky.provision.kubernetes.instance.get_cluster_info")
-    print(f"cluster_name_on_cloud: {cluster_name_on_cloud}")
-
     port_forward_mode = kubernetes_enums.KubernetesNetworkingMode.PORTFORWARD
     network_mode_str = skypilot_config.get_nested(('kubernetes', 'networking'),
                                                   port_forward_mode.value)
     network_mode = kubernetes_enums.KubernetesNetworkingMode.from_str(
         network_mode_str)
-    print(f"network_mode: {network_mode}")
-    print("skypilot_config")
-    print(skypilot_config.to_dict())
     external_ip = kubernetes_utils.get_external_ip(network_mode, cluster_name_on_cloud, namespace)
-    print(f"external_ip: {external_ip}")
     port = 22
     if not provider_config.get('use_internal_ips', False):
-        print(f"use_internal_ips: {provider_config.get('use_internal_ips', False)}")
         port = kubernetes_utils.get_head_ssh_port(cluster_name_on_cloud,
                                                   namespace)
-        print(f"port: {port}")
 
     head_pod_name = None
     cpu_request = None
     head_node_ssh_port = port
     for pod_name, pod in running_pods.items():
-        print(f"pod_name: {pod_name}")
         internal_ip = pod.status.pod_ip
         external_ip = network_utils.get_pod_node_external_ip(namespace, pod_name)
-        print(f"got external ip for pod {pod_name}: {external_ip}")
         komodo_worker_id = pod.metadata.labels.get("KOMODO-WORKER-ID", None)
         pod_ssh_port = head_node_ssh_port
         if komodo_worker_id:
             pod_ssh_port = kubernetes_utils.get_port(
                 pod.metadata.labels["KOMODO-WORKER-ID"], namespace
             )
-        print(f"got port for pod {pod_name}: {pod_ssh_port}")
         pods[pod_name] = [
             common.InstanceInfo(
                 instance_id=pod_name,

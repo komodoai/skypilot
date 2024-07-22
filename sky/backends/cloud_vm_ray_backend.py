@@ -1394,7 +1394,6 @@ class RetryingVmProvisioner(object):
         prev_cluster_ever_up: bool,
     ) -> Dict[str, Any]:
         """The provision retry loop."""
-        print(f"enter _retry_zones, to_provision: {to_provision}, num_nodes: {num_nodes}, requested_resources: {requested_resources}, dryrun: {dryrun}, stream_logs: {stream_logs}, cluster_name: {cluster_name}, cloud_user_identity: {cloud_user_identity}, prev_cluster_status: {prev_cluster_status}, prev_handle: {prev_handle}, prev_cluster_ever_up: {prev_cluster_ever_up}")
         style = colorama.Style
         fore = colorama.Fore
         # Get log_path name
@@ -1562,8 +1561,6 @@ class RetryingVmProvisioner(object):
                 assert to_provision.region == region.name, (to_provision,
                                                             region)
                 num_nodes = handle.launched_nodes
-                print(f"about to call provisioner.bulk_provision, to_provision.cloud: {to_provision.cloud}, region: {region}, zones: {zones}, cluster_name: {cluster_name}, num_nodes: {num_nodes}, handle.cluster_name_on_cloud: {handle.cluster_name_on_cloud}, handle.cluster_yaml: {handle.cluster_yaml}, prev_cluster_ever_up: {prev_cluster_ever_up}, log_dir: {self.log_dir}")
-                print(f"type(provisioner): {type(provisioner)}")
                 try:
                     provision_record = provisioner.bulk_provision(
                         to_provision.cloud,
@@ -2276,7 +2273,6 @@ class CloudVmRayResourceHandle(backends.backend.ResourceHandle):
     def _update_cluster_info(self):
         # When a cluster is on a cloud that does not support the new
         # provisioner, we should skip updating cluster_info.
-        logger.info("enter _update_cluster_info")
         if (self.launched_resources.cloud.PROVISIONER_VERSION >=
                 clouds.ProvisionerVersion.SKYPILOT):
             provider_name = str(self.launched_resources.cloud).lower()
@@ -2772,7 +2768,6 @@ class CloudVmRayBackend(backends.Backend['CloudVmRayResourceHandle']):
             RuntimeErorr: raised when 'rsync' is not installed.
             # TODO(zhwu): complete the list of exceptions.
         """
-        print(f"enter CloudVmRayBackend._provision")
         # FIXME: ray up for Azure with different cluster_names will overwrite
         # each other.
         # When rsync is not installed in the user's machine, Ray will
@@ -2790,7 +2785,6 @@ class CloudVmRayBackend(backends.Backend['CloudVmRayResourceHandle']):
             # resources.
             to_provision_config = self._check_existing_cluster(
                 task, to_provision, cluster_name, dryrun)
-            print(f"to_provision_config: {to_provision_config}")
             assert to_provision_config.resources is not None, (
                 'to_provision should not be None', to_provision_config)
 
@@ -2815,7 +2809,6 @@ class CloudVmRayBackend(backends.Backend['CloudVmRayResourceHandle']):
                     max_backoff_factor=1)
             attempt_cnt = 1
             while True:
-                print("entering RetryingVmProvisioner")
                 # For on-demand instances, RetryingVmProvisioner will retry
                 # within the given region first, then optionally retry on all
                 # other clouds and regions (if backend.register_info()
