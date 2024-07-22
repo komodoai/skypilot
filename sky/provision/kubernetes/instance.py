@@ -462,12 +462,9 @@ def _create_pods(region: str, cluster_name_on_cloud: str,
             pod_spec['metadata']['labels'].update(head_selector)
             pod_spec['metadata']['name'] = f'{cluster_name_on_cloud}-head'
         else:
-<<<<<<< HEAD
             pod_spec['metadata']['labels'].update(constants.WORKER_NODE_TAGS)
-=======
             pod_spec['metadata']['labels'][TAG_RAY_NODE_KIND] = 'worker'
             pod_spec['metadata']['labels']['KOMODO-WORKER-ID'] = f"{cluster_name_on_cloud}-worker-{idx}"
->>>>>>> c23d86d6 (feat: jul 9 check in)
             pod_uuid = str(uuid.uuid4())[:4]
             pod_name = f'{cluster_name_on_cloud}-{pod_uuid}'
             pod_spec['metadata']['name'] = f'{pod_name}-worker'
