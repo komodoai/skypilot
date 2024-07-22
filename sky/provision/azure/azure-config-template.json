@@ -26,7 +26,7 @@
         "subnetName": "[concat('sky-', parameters('clusterId'), '-subnet')]"
     },
     "resources": [
-       {
+        {
             "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
             "apiVersion": "2018-11-30",
             "location": "[variables('location')]",
@@ -35,7 +35,7 @@
         {
             "type": "Microsoft.Authorization/roleAssignments",
             "apiVersion": "2020-08-01-preview",
-            "name": "[guid(variables('roleAssignmentName'))]",
+            "name": "[guid(resourceGroup().id, 'monitoringUsers')]",
             "properties": {
                 "principalId": "[reference(variables('msiName')).principalId]",
                 "roleDefinitionId": "[variables('contributor')]",
