@@ -572,7 +572,6 @@ def get_gpu_label_key_value(acc_type: str, check_mode=False) -> Tuple[str, str]:
 
 
 def get_head_ssh_port(cluster_name: str, namespace: str) -> int:
-    print(f"enter get_head_ssh_port, cluster_name: {cluster_name}, namespace: {namespace}")
     # svc_name = f'{cluster_name}-head-ssh'
     svc_name = f'{cluster_name}-head'
     return get_port(svc_name, namespace)
@@ -586,27 +585,22 @@ def get_port(svc_name: str, namespace: str) -> int:
             different from the cluster name.
         namespace (str): Kubernetes namespace to look for the service in.
     """
-    print(f"enter get_port, svc_name: {svc_name}, namespace: {namespace}")
     head_service = kubernetes.core_api().read_namespaced_service(
         svc_name, namespace)
     for port in head_service.spec.ports:
         if port.port == 22:
             return port.node_port
-    # print(f"head_service.spec.ports: {head_service.spec.ports}")
-    # return head_service.spec.ports[0].node_port
 
 def get_external_ip(
         network_mode: Optional[kubernetes_enums.KubernetesNetworkingMode],
         cluster_name: Optional[str] = None,
         namespace: Optional[str] = None) -> str:
-    print(f"enter get_external_ip, network_mode: {network_mode}, cluster_name: {cluster_name}, namespace: {namespace}")
     if network_mode == kubernetes_enums.KubernetesNetworkingMode.PORTFORWARD:
         return '127.0.0.1'
     if cluster_name and namespace:
         external_ip = network_utils.get_pod_node_external_ip(
             namespace, f"{cluster_name}-head"
         )
-        print(f"external_ip: {external_ip}")
         return external_ip
 
     # Return the IP address of the first node with an external IP
@@ -1022,19 +1016,14 @@ def get_ssh_proxy_command(
         namespace: Kubernetes namespace to use.
             Required for NODEPORT networking mode.
     """
-    logger.info("enter get_ssh_proxy_command")
-    logger.info("network_mode: %s", network_mode)
     # Fetch IP to connect to for the jump svc
     ssh_jump_ip = get_external_ip(network_mode)
-    logger.info(f"ssh_jump_ip: {ssh_jump_ip}")
     assert private_key_path is not None, 'Private key path must be provided'
     if network_mode == kubernetes_enums.KubernetesNetworkingMode.NODEPORT:
         assert namespace is not None, 'Namespace must be provided for NodePort'
         ssh_jump_port = get_port(k8s_ssh_target, namespace)
-        logger.info(f"ssh_jump_port: {ssh_jump_port}")
         ssh_jump_proxy_command = construct_ssh_jump_command(
             private_key_path, ssh_jump_ip, ssh_jump_port=ssh_jump_port)
-        logger.info(f"ssh_jump_proxy_command: {ssh_jump_proxy_command}")
     else:
         ssh_jump_proxy_command_path = create_proxy_command_script()
         current_context = get_current_kube_config_context_name()
@@ -1095,11 +1084,8 @@ def setup_ssh_jump_svc(ssh_jump_name: str, namespace: str,
 
     # Create service
     try:
-        logger.info(content['service_spec'])
         for port in content['service_spec']['spec']['ports']:
-            logger.info(f"Port: {port['port']}")
             if 'name' not in port:
-                logger.info(f"Port name not found, setting it to port")
                 port['name'] = f"port-{port['port']}"
         kubernetes.core_api().create_namespaced_service(namespace,
                                                         content['service_spec'])
@@ -1386,6 +1372,9 @@ def get_endpoint_debug_message() -> str:
     elif port_mode == kubernetes_enums.KubernetesPortMode.PODIP:
         endpoint_type = 'PodIP'
         debug_cmd = 'kubectl describe pod'
+    elif port_mode == kubernetes_enums.KubernetesPortMode.NODEPORT:
+        endpoint_type = 'NodePort'
+        debug_cmd = 'kubectl describe service'
     return ENDPOINTS_DEBUG_MESSAGE.format(endpoint_type=endpoint_type,
                                           debug_cmd=debug_cmd)
 
