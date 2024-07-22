@@ -350,7 +350,6 @@ class Kubernetes(clouds.Cloud):
             'k8s_spot_label_value': spot_label_value,
             'image_id': image_id,
         }
-        print("make_deploy_resources_variables: ", deploy_vars)
 
         return deploy_vars
 

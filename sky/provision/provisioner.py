@@ -47,10 +47,8 @@ def _bulk_provision(
     cluster_name: resources_utils.ClusterName,
     bootstrap_config: provision_common.ProvisionConfig,
 ) -> provision_common.ProvisionRecord:
-    print(f"enter _bulk_provision")
     provider_name = repr(cloud)
     region_name = region.name
-    print(f"provider_name: {provider_name}, region_name: {region_name}")
 
     style = colorama.Style
 
@@ -87,8 +85,6 @@ def _bulk_provision(
                          f'{common_utils.format_exception(e)}')
             raise
 
-        print(f"about to call provision.run_instances, provider_name: {provider_name}, region_name: {region_name}, cluster_name.name_on_cloud: {cluster_name.name_on_cloud}")
-        print(f"type(provision): {type(provision)}")
         provision_record = provision.run_instances(provider_name,
                                                    region_name,
                                                    cluster_name.name_on_cloud,
@@ -143,7 +139,6 @@ def bulk_provision(
         Cloud specific exceptions: If the provisioning process failed, cloud-
             specific exceptions will be raised by the cloud APIs.
     """
-    print(f"enter sky.provision.provisioner.bulk_provision")
     original_config = common_utils.read_yaml(cluster_yaml)
     head_node_type = original_config['head_node_type']
     bootstrap_config = provision_common.ProvisionConfig(
@@ -373,9 +368,6 @@ def wait_for_ssh(cluster_info: provision_common.ClusterInfo,
     Raises:
         RuntimeError: If the SSH connection is not ready after timeout.
     """
-    print("enter _wait_for_ssh")
-    print(f"cluster_info.has_external_ips(): {cluster_info.has_external_ips()}")
-    print(f"ssh_credentials.get('ssh_proxy_command'): {ssh_credentials.get('ssh_proxy_command')}")
     if (cluster_info.has_external_ips() and
             ssh_credentials.get('ssh_proxy_command') is None):
         # If we can access public IPs, then it is more efficient to test SSH
@@ -386,9 +378,6 @@ def wait_for_ssh(cluster_info: provision_common.ClusterInfo,
         waiter = _wait_ssh_connection_indirect
     ip_list = cluster_info.get_feasible_ips()
     port_list = cluster_info.get_ssh_ports()
-
-    print(f"ip_list: {ip_list}")
-    print(f"port_list: {port_list}")
 
     logger.info(f'Waiting for SSH to {ip_list} with ports {port_list} ...')
 
@@ -419,7 +408,6 @@ def _post_provision_setup(
         custom_resource: Optional[str]) -> provision_common.ClusterInfo:
     config_from_yaml = common_utils.read_yaml(cluster_yaml)
     provider_config = config_from_yaml.get('provider')
-    logger.info(f"enter _post_provision_setup")
     cluster_info = provision.get_cluster_info(cloud_name,
                                               provision_record.region,
                                               cluster_name.name_on_cloud,
