@@ -653,8 +653,6 @@ def terminate_instances(
     }
     pods = _filter_pods(namespace, tag_filters, None)
 
-    pod_names = [pod.metadata.name for pod in pods.values()]
-
     def _is_head(pod) -> bool:
         return pod.metadata.labels[constants.TAG_RAY_NODE_KIND] == 'head'
 
