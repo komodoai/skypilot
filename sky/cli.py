@@ -1107,7 +1107,7 @@ def launch(
     else:
         with ux_utils.print_exception_no_traceback():
             raise ValueError(f'{backend_name} backend is not supported.')
-        
+
     if task.service is not None:
         logger.info(
             f'{colorama.Fore.YELLOW}Service section will be ignored when using '
