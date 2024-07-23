@@ -42,6 +42,8 @@ def bootstrap_instances(
         region: str, cluster_name_on_cloud: str,
         config: common.ProvisionConfig) -> common.ProvisionConfig:
     """See sky/provision/__init__.py"""
+    print(f'Bootstrapping Azure instances for cluster {cluster_name_on_cloud}')
+    print(f'Bootstrapping Azure instances for cluster ')
     del region  # unused
     provider_config = config.provider_config
     subscription_id = provider_config.get('subscription_id')
@@ -147,8 +149,10 @@ def bootstrap_instances(
         except azure.exceptions().ResourceNotFoundError:
             deployment_exists = False
 
+    print(f'Deployment exists: {deployment_exists}')
+
     if not deployment_exists:
-        logger.info(f'Creating/Updating deployment: {_DEPLOYMENT_NAME}')
+        print(f'Creating/Updating deployment: {_DEPLOYMENT_NAME}')
         create_or_update = get_azure_sdk_function(
             client=resource_client.deployments,
             function_name='create_or_update')
@@ -158,6 +162,7 @@ def bootstrap_instances(
             deployment_name=_DEPLOYMENT_NAME,
             parameters=parameters,
         ).result().properties.outputs
+        print(f'Created/Updated deployment: {_DEPLOYMENT_NAME}')
 
     nsg_id = outputs['nsg']['value']
 
