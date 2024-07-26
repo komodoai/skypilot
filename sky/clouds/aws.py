@@ -784,6 +784,12 @@ class AWS(clouds.Cloud):
         # provider of the cluster to be launched in this function and make sure
         # the cluster will not be used for launching clusters in other clouds,
         # e.g. jobs controller.
+        if os.getenv('__KOMODO_INSTALL_EXTERNAL_AWS_CREDENTIALS__', '') == '1':
+            return {
+                '/opt/bin/source_aws_credentials.sh': '/tmp/source_aws_credentials.sh',
+                '~/.aws/credentials': '/tmp/aws_credentials',
+                '~/.komo/api-key': '/tmp/komodo_api_key',
+            }
         if self._current_identity_type(
         ) != AWSIdentityType.SHARED_CREDENTIALS_FILE:
             return {}
