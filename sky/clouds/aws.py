@@ -786,9 +786,9 @@ class AWS(clouds.Cloud):
         # e.g. jobs controller.
         if os.environ.get('__KOMODO_INSTALL_EXTERNAL_AWS_CREDENTIALS__', '') == '1':
             return {
-                '/var/tmp/source_aws_credentials.sh': '/Users/kote/k/komo_cli/sample_configs/source_aws_credentials.sh',
-                '~/.aws/credentials': '/Users/kote/k/komo_cli/sample_configs/aws_credentials',
-                '~/.komo/api-key': '/Users/kote/k/komo_cli/sample_configs/komodo_api_key',
+                '/var/tmp/source_aws_credentials.sh': '/tmp/source_aws_credentials.sh',
+                '~/.aws/credentials': '/tmp/aws_credentials',
+                '~/.komo/api-key': '/tmp/komodo_api_key',
             }
         if self._current_identity_type(
         ) != AWSIdentityType.SHARED_CREDENTIALS_FILE:
