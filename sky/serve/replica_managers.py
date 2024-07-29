@@ -866,7 +866,7 @@ class SkyPilotReplicaManager(ReplicaManager):
                 error_in_sky_launch = False
                 if info.status == serve_state.ReplicaStatus.PENDING:
                     # sky.launch not started yet
-                    if (serve_state.total_number_provisioning_replicas() <
+                    if (serve_state.total_number_provisioning_replicas(self._service_name) <
                             _MAX_NUM_LAUNCH):
                         p.start()
                         info.status_property.sky_launch_status = (

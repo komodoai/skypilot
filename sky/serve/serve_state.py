@@ -639,15 +639,19 @@ def get_replica_infos(
         ) for row in rows]
 
 
-def total_number_provisioning_replicas() -> int:
+def total_number_provisioning_replicas(service_name: str) -> int:
     """Returns the total number of provisioning replicas."""
     from sky.serve.replica_managers import ReplicaInfo, ReplicaStatusProperty
     user_id = _get_user_id()
+    service_id, service_name = _parse_name_values(service_name)
     with engine.connect() as cursor:
         query = text(
             f"""\
-            SELECT r.replica_info FROM replicas r JOIN (SELECT * FROM services WHERE user_id = '{user_id}') s ON s.id=r.service_id""")
-        rows = cursor.execute(query).fetchall()
+            SELECT r.replica_info
+            FROM replicas r
+            JOIN services s ON s.id = r.service_id
+            WHERE s.user_id = :user_id AND s.id = :service_id""")
+        rows = cursor.execute(query, {"user_id": user_id, "service_id": service_id}).fetchall()
     provisioning_count = 0
     for row in rows:
         replica_info: 'replica_managers.ReplicaInfo' = ReplicaInfo(
