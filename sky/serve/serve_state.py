@@ -14,7 +14,6 @@ import colorama
 import sky
 from sky.serve import constants
 from sky.utils import db_utils
-from sky.utils.db_utils import engine
 
 if typing.TYPE_CHECKING:
     from sky.serve import replica_managers
@@ -23,6 +22,10 @@ if typing.TYPE_CHECKING:
 from sqlalchemy import create_engine, text
 import os
 
+if os.environ.get('DATABASE_URL', None):
+    engine = create_engine(os.environ['DATABASE_URL'], pool_pre_ping=True)
+else:
+    engine = None
 
 # _DB_PATH = pathlib.Path(constants.SKYSERVE_METADATA_DIR) / 'services.db'
 # _DB_PATH = _DB_PATH.expanduser().absolute()
