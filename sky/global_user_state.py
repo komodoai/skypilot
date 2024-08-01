@@ -22,6 +22,7 @@ from sky import status_lib
 from sky.constants import SKY_HOME
 from sky.utils import common_utils
 from sky.utils import db_utils
+from sky.utils.db_utils import engine, clusters, cluster_history, config, storage
 
 if typing.TYPE_CHECKING:
     from sky import backends
@@ -33,16 +34,7 @@ from sqlalchemy.sql import text
 
 _ENABLED_CLOUDS_KEY = 'enabled_clouds'
 
-if os.environ.get('DATABASE_URL', None):
-    print(f"Running against a Komodo db")
-    engine = create_engine(os.environ['DATABASE_URL'], pool_pre_ping=True)
-    metadata = MetaData()
-    clusters = Table('clusters', metadata, autoload_with=engine)
-    cluster_history = Table('cluster_history', metadata, autoload_with=engine)
-    config = Table('config', metadata, autoload_with=engine)
-    storage = Table('storage', metadata, autoload_with=engine)
-else:
-    engine = None
+if engine is None:
     _DB_PATH = os.path.expanduser(f'{SKY_HOME}/state.db')
     pathlib.Path(_DB_PATH).parents[0].mkdir(parents=True, exist_ok=True)
 

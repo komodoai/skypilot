@@ -3,6 +3,31 @@ import contextlib
 import sqlite3
 import threading
 from typing import Any, Callable, Optional
+import os
+from sqlalchemy import create_engine, MetaData, Table, text
+
+
+def get_komodo_db_resources():
+    if os.environ.get('DATABASE_URL') is None:
+        print("No DATABASE_URL found in the environment, running against local sqlite db")
+        return None, None, None, None, None
+    print(f"Running against a Komodo db")
+    # Create SQLAlchemy engine
+    engine = create_engine(os.environ['DATABASE_URL'], pool_pre_ping=True)
+
+    # Create MetaData instance
+    metadata = MetaData()
+
+    # Reflect tables from the database
+    clusters = Table('clusters', metadata, autoload_with=engine)
+    cluster_history = Table('cluster_history', metadata, autoload_with=engine)
+    config = Table('config', metadata, autoload_with=engine)
+    storage = Table('storage', metadata, autoload_with=engine)
+
+    return engine, clusters, cluster_history, config, storage
+
+engine, clusters, cluster_history, config, storage = get_komodo_db_resources()
+
 
 
 @contextlib.contextmanager

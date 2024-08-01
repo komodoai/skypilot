@@ -7,12 +7,14 @@ import pickle
 import sqlite3
 import typing
 from typing import Any, Dict, List, Optional, Tuple
+from tenacity import retry, stop_after_attempt, wait_exponential_jitter
 
 import colorama
 
 import sky
 from sky.serve import constants
 from sky.utils import db_utils
+from sky.utils.db_utils import engine
 
 if typing.TYPE_CHECKING:
     from sky.serve import replica_managers
@@ -21,10 +23,6 @@ if typing.TYPE_CHECKING:
 from sqlalchemy import create_engine, text
 import os
 
-if os.environ.get('DATABASE_URL', None):
-    engine = create_engine(os.environ['DATABASE_URL'], pool_pre_ping=True)
-else:
-    engine = None
 
 # _DB_PATH = pathlib.Path(constants.SKYSERVE_METADATA_DIR) / 'services.db'
 # _DB_PATH = _DB_PATH.expanduser().absolute()
@@ -251,6 +249,7 @@ def _parse_name_values(full_name: str):
     return service_id, name
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def add_service(name: str, controller_job_id: int, policy: str,
                 requested_resources_str: str, status: ServiceStatus) -> bool:
     """Add a service in the database.
@@ -280,6 +279,7 @@ def add_service(name: str, controller_job_id: int, policy: str,
     return True
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def remove_service(service_name: str) -> None:
     """Removes a service from the database."""
     service_id, service_name = _parse_name_values(service_name)
@@ -291,6 +291,7 @@ def remove_service(service_name: str) -> None:
         cursor.commit()
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def set_service_uptime(service_name: str, uptime: int) -> None:
     """Sets the uptime of a service."""
     service_id, service_name = _parse_name_values(service_name)
@@ -302,6 +303,7 @@ def set_service_uptime(service_name: str, uptime: int) -> None:
         cursor.commit()
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def set_service_status_and_active_versions(
         service_name: str,
         status: ServiceStatus,
@@ -320,6 +322,8 @@ def set_service_status_and_active_versions(
         cursor.execute(query)
         cursor.commit()
 
+
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def set_service_controller_port(service_name: str,
                                 controller_port: int) -> None:
     """Sets the controller port of a service."""
@@ -332,6 +336,7 @@ def set_service_controller_port(service_name: str,
         cursor.commit()
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def set_service_load_balancer_port(service_name: str,
                                    load_balancer_port: int) -> None:
     """Sets the load balancer port of a service."""
@@ -344,6 +349,7 @@ def set_service_load_balancer_port(service_name: str,
         cursor.commit()
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def _get_service_from_row(row) -> Dict[str, Any]:
     (current_version, service_id, name, controller_job_id, controller_port,
      load_balancer_port, status, uptime, min_replicas, max_replicas, resources, active_versions) = row[:13]
@@ -368,6 +374,7 @@ def _get_service_from_row(row) -> Dict[str, Any]:
     }
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_services() -> List[Dict[str, Any]]:
     """Get all existing service records."""
     user_id = _get_user_id()
@@ -386,6 +393,7 @@ def get_services() -> List[Dict[str, Any]]:
     return records
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_service_from_name(service_name: str) -> Optional[Dict[str, Any]]:
     """Get all existing service records."""
     service_id, service_name = _parse_name_values(service_name)
@@ -408,6 +416,7 @@ def get_service_from_name(service_name: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_service_versions(service_name: str) -> List[int]:
     """Gets all versions of a service."""
     service_id, service_name = _parse_name_values(service_name)
@@ -419,6 +428,7 @@ def get_service_versions(service_name: str) -> List[int]:
     return [row[0] for row in rows]
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_glob_service_names(
         service_names: Optional[List[str]] = None) -> List[str]:
     """Get service names matching the glob patterns.
@@ -445,6 +455,8 @@ def get_glob_service_names(
                 rows.extend(cursor.execute(query).fetchall())
     return list({row[0] for row in rows})
 
+
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def _sky_instance_to_ssh_info(instance: sky.provision.common.InstanceInfo, role: str):
     ip_address = instance.get_feasible_ip()
     ssh_port = instance.ssh_port
@@ -457,7 +469,9 @@ def _sky_instance_to_ssh_info(instance: sky.provision.common.InstanceInfo, role:
 
     return ssh_info
 
+
 # === Replica functions ===
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def add_or_update_replica(service_name: str, replica_id: int,
                           replica_info: 'replica_managers.ReplicaInfo') -> None:
     """Adds a replica to the database."""
@@ -578,6 +592,7 @@ def add_or_update_replica(service_name: str, replica_id: int,
         cursor.commit()
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def remove_replica(service_name: str, replica_id: int) -> None:
     """Removes a replica from the database."""
     service_id, service_name = _parse_name_values(service_name)
@@ -588,6 +603,8 @@ def remove_replica(service_name: str, replica_id: int) -> None:
         cursor.execute(query)
         cursor.commit()
 
+
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_replica_info_from_id(
         service_name: str,
         replica_id: int) -> Optional['replica_managers.ReplicaInfo']:
@@ -616,6 +633,7 @@ def get_replica_info_from_id(
     return None
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_replica_infos(
         service_name: str) -> List['replica_managers.ReplicaInfo']:
     """Gets all replica infos of a service."""
@@ -639,6 +657,7 @@ def get_replica_infos(
         ) for row in rows]
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def total_number_provisioning_replicas(service_name: str) -> int:
     """Returns the total number of provisioning replicas."""
     from sky.serve.replica_managers import ReplicaInfo, ReplicaStatusProperty
@@ -670,6 +689,7 @@ def total_number_provisioning_replicas(service_name: str) -> int:
 
 
 # === Version functions ===
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def add_version(service_name: str) -> int:
     """Adds a version to the database."""
     service_id, service_name = _parse_name_values(service_name)
@@ -691,6 +711,7 @@ def add_version(service_name: str) -> int:
     return inserted_version
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def add_or_update_version(service_name: str, version: int,
                           spec: 'service_spec.SkyServiceSpec') -> None:
     service_id, service_name = _parse_name_values(service_name)
@@ -709,6 +730,7 @@ def add_or_update_version(service_name: str, version: int,
         cursor.commit()
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def remove_service_versions(service_name: str) -> None:
     """Removes a replica from the database."""
     service_id, service_name = _parse_name_values(service_name)
@@ -720,6 +742,7 @@ def remove_service_versions(service_name: str) -> None:
         cursor.commit()
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_spec(service_name: str,
              version: int) -> Optional['service_spec.SkyServiceSpec']:
     """Gets spec from the database."""
@@ -738,6 +761,7 @@ def get_spec(service_name: str,
     return None
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def delete_version(service_name: str, version: int) -> None:
     """Deletes a version from the database."""
     service_id, service_name = _parse_name_values(service_name)
