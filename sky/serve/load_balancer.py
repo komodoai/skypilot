@@ -4,6 +4,7 @@ import os
 import logging
 import threading
 from typing import Dict, Union
+import traceback
 
 import aiohttp
 import fastapi
@@ -71,45 +72,49 @@ class SkyServeLoadBalancer:
         await asyncio.sleep(5)
 
         while True:
-            close_client_tasks = []
-            async with aiohttp.ClientSession() as session:
-                try:
-                    # Send request information
-                    async with session.post(
-                            self._controller_url +
-                            '/controller/load_balancer_sync',
-                            json={
-                                'request_aggregator':
-                                    self._request_aggregator.to_dict()
-                            },
-                            timeout=5,
-                    ) as response:
-                        # Clean up after reporting request info to avoid OOM.
-                        self._request_aggregator.clear()
-                        response.raise_for_status()
-                        response_json = await response.json()
-                        ready_replica_urls = response_json.get(
-                            'ready_replica_urls', [])
-                except aiohttp.ClientError as e:
-                    logger.error('An error occurred when syncing with '
-                                 f'the controller: {e}')
-                else:
-                    logger.info(f'Available Replica URLs: {ready_replica_urls}')
-                    with self._client_pool_lock:
-                        self._load_balancing_policy.set_ready_replicas(
-                            ready_replica_urls)
-                        for replica_url in ready_replica_urls:
-                            if replica_url not in self._client_pool:
-                                self._client_pool[replica_url] = (
-                                    httpx.AsyncClient(base_url=replica_url))
-                        urls_to_close = set(
-                            self._client_pool.keys()) - set(ready_replica_urls)
-                        client_to_close = []
-                        for replica_url in urls_to_close:
-                            client_to_close.append(
-                                self._client_pool.pop(replica_url))
-                    for client in client_to_close:
-                        close_client_tasks.append(client.aclose())
+            try:
+                close_client_tasks = []
+                async with aiohttp.ClientSession() as session:
+                    try:
+                        # Send request information
+                        async with session.post(
+                                self._controller_url +
+                                '/controller/load_balancer_sync',
+                                json={
+                                    'request_aggregator':
+                                        self._request_aggregator.to_dict()
+                                },
+                                timeout=5,
+                        ) as response:
+                            # Clean up after reporting request info to avoid OOM.
+                            self._request_aggregator.clear()
+                            response.raise_for_status()
+                            response_json = await response.json()
+                            ready_replica_urls = response_json.get(
+                                'ready_replica_urls', [])
+                    except aiohttp.ClientError as e:
+                        logger.error('An error occurred when syncing with '
+                                    f'the controller: {e}')
+                    else:
+                        logger.info(f'Available Replica URLs: {ready_replica_urls}')
+                        with self._client_pool_lock:
+                            self._load_balancing_policy.set_ready_replicas(
+                                ready_replica_urls)
+                            for replica_url in ready_replica_urls:
+                                if replica_url not in self._client_pool:
+                                    self._client_pool[replica_url] = (
+                                        httpx.AsyncClient(base_url=replica_url))
+                            urls_to_close = set(
+                                self._client_pool.keys()) - set(ready_replica_urls)
+                            client_to_close = []
+                            for replica_url in urls_to_close:
+                                client_to_close.append(
+                                    self._client_pool.pop(replica_url))
+                        for client in client_to_close:
+                            close_client_tasks.append(client.aclose())
+            except Exception as e:
+                logger.error(str(e))
+                traceback.print_exc()
 
             await asyncio.sleep(constants.LB_CONTROLLER_SYNC_INTERVAL_SECONDS)
             # Await those tasks after the interval to avoid blocking.
