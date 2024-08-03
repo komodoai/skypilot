@@ -15,6 +15,7 @@ import time
 import typing
 from typing import Any, Dict, List, Optional, Set, Tuple
 import uuid
+from tenacity import retry, stop_after_attempt, wait_exponential_jitter
 
 from sky import clouds
 from sky import status_lib
@@ -32,14 +33,27 @@ from sqlalchemy.sql import text
 
 _ENABLED_CLOUDS_KEY = 'enabled_clouds'
 
-if os.environ.get('DATABASE_URL', None):
+
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
+def get_komodo_db_resources():
+    if os.environ.get('DATABASE_URL') is None:
+        print("No DATABASE_URL found in the environment, running against local sqlite db")
+        return None, None, None, None, None
     print(f"Running against a Komodo db")
+    # Create SQLAlchemy engine
     engine = create_engine(os.environ['DATABASE_URL'], pool_pre_ping=True)
+    # Create MetaData instance
     metadata = MetaData()
+    # Reflect tables from the database
     clusters = Table('clusters', metadata, autoload_with=engine)
     cluster_history = Table('cluster_history', metadata, autoload_with=engine)
     config = Table('config', metadata, autoload_with=engine)
     storage = Table('storage', metadata, autoload_with=engine)
+
+    return engine, clusters, cluster_history, config, storage
+
+if os.environ.get('DATABASE_URL', None):
+    engine, clusters, cluster_history, config, storage = get_komodo_db_resources()
 else:
     engine = None
     _DB_PATH = os.path.expanduser(f'{SKY_HOME}/state.db')
@@ -161,6 +175,7 @@ if engine is None:
     _DB = db_utils.SQLiteConn(_DB_PATH, create_table)
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def add_or_update_cluster(cluster_name: str,
                           cluster_handle: 'backends.ResourceHandle',
                           requested_resources: Optional[Set[Any]],
@@ -418,6 +433,7 @@ def add_or_update_cluster(cluster_name: str,
         _DB.conn.commit()
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def update_last_use(cluster_name: str):
     """Updates the last used command for the cluster."""
     if engine:
@@ -434,6 +450,7 @@ def update_last_use(cluster_name: str):
         _DB.conn.commit()
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def remove_cluster(cluster_name: str, terminate: bool) -> None:
     """Removes cluster_name mapping."""
     cluster_hash = _get_hash_for_existing_cluster(cluster_name)
@@ -484,6 +501,7 @@ def remove_cluster(cluster_name: str, terminate: bool) -> None:
         _DB.conn.commit()
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_handle_from_cluster_name(
         cluster_name: str) -> Optional['backends.ResourceHandle']:
     assert cluster_name is not None, 'cluster_name cannot be None'
@@ -503,6 +521,7 @@ def get_handle_from_cluster_name(
     return None
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_glob_cluster_names(cluster_name: str) -> List[str]:
     assert cluster_name is not None, 'cluster_name cannot be None'
     if engine:
@@ -519,6 +538,7 @@ def get_glob_cluster_names(cluster_name: str) -> List[str]:
         return [row[0] for row in rows]
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def set_cluster_status(cluster_name: str,
                        status: status_lib.ClusterStatus) -> None:
     if engine:
@@ -542,6 +562,7 @@ def set_cluster_status(cluster_name: str,
         raise ValueError(f'Cluster {cluster_name} not found.')
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def set_cluster_autostop_value(cluster_name: str, idle_minutes: int,
                                to_down: bool) -> None:
     if engine:
@@ -568,6 +589,7 @@ def set_cluster_autostop_value(cluster_name: str, idle_minutes: int,
         raise ValueError(f'Cluster {cluster_name} not found.')
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_cluster_launch_time(cluster_name: str) -> Optional[int]:
     if engine:
         cluster_id, cluster_name = _parse_name_values(cluster_name)
@@ -589,6 +611,7 @@ def get_cluster_launch_time(cluster_name: str) -> Optional[int]:
     return None
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_cluster_info(cluster_name: str) -> Optional[Dict[str, Any]]:
     if engine:
         cluster_id, cluster_name = _parse_name_values(cluster_name)
@@ -611,6 +634,7 @@ def get_cluster_info(cluster_name: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def set_cluster_info(cluster_name: str, metadata: Dict[str, Any]) -> None:
     if engine:
         cluster_id, cluster_name = _parse_name_values(cluster_name)
@@ -633,6 +657,7 @@ def set_cluster_info(cluster_name: str, metadata: Dict[str, Any]) -> None:
         raise ValueError(f'Cluster {cluster_name} not found.')
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_cluster_storage_mounts_metadata(
         cluster_name: str) -> Optional[Dict[str, Any]]:
     if engine:
@@ -656,6 +681,7 @@ def get_cluster_storage_mounts_metadata(
     return None
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def set_cluster_storage_mounts_metadata(
         cluster_name: str, storage_mounts_metadata: Dict[str, Any]) -> None:
     if engine:
@@ -680,6 +706,7 @@ def set_cluster_storage_mounts_metadata(
         raise ValueError(f'Cluster {cluster_name} not found.')
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def _get_cluster_usage_intervals(
         cluster_hash: Optional[str]
 ) -> Optional[List[Tuple[int, Optional[int]]]]:
@@ -705,6 +732,7 @@ def _get_cluster_usage_intervals(
     return None
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def _get_cluster_launch_time(cluster_hash: str) -> Optional[int]:
     usage_intervals = _get_cluster_usage_intervals(cluster_hash)
     if usage_intervals is None:
@@ -712,6 +740,7 @@ def _get_cluster_launch_time(cluster_hash: str) -> Optional[int]:
     return usage_intervals[0][0]
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def _get_cluster_duration(cluster_hash: str) -> int:
     total_duration = 0
     usage_intervals = _get_cluster_usage_intervals(cluster_hash)
@@ -731,6 +760,7 @@ def _get_cluster_duration(cluster_hash: str) -> int:
     return total_duration
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def _set_cluster_usage_intervals(
         cluster_hash: str, usage_intervals: List[Tuple[int,
                                                        Optional[int]]]) -> None:
@@ -757,6 +787,7 @@ def _set_cluster_usage_intervals(
         raise ValueError(f'Cluster hash {cluster_hash} not found.')
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def set_owner_identity_for_cluster(cluster_name: str,
                                    owner_identity: Optional[List[str]]) -> None:
     if owner_identity is None:
@@ -783,6 +814,7 @@ def set_owner_identity_for_cluster(cluster_name: str,
         raise ValueError(f'Cluster {cluster_name} not found.')
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def _get_hash_for_existing_cluster(cluster_name: str) -> Optional[str]:
     if engine:
         cluster_id, cluster_name = _parse_name_values(cluster_name)
@@ -805,6 +837,7 @@ def _get_hash_for_existing_cluster(cluster_name: str) -> Optional[str]:
     return None
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_launched_resources_from_cluster_hash(
         cluster_hash: str) -> Optional[Tuple[int, Any]]:
     if engine:
@@ -830,6 +863,7 @@ def get_launched_resources_from_cluster_hash(
     return None
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def _load_owner(record_owner: Optional[str]) -> Optional[List[str]]:
     if record_owner is None:
         return None
@@ -850,6 +884,7 @@ def _load_owner(record_owner: Optional[str]) -> Optional[List[str]]:
         return [record_owner]
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def _load_storage_mounts_metadata(
     record_storage_mounts_metadata: Optional[bytes]
 ) -> Optional[Dict[str, 'Storage.StorageMetadata']]:
@@ -858,6 +893,7 @@ def _load_storage_mounts_metadata(
     return pickle.loads(record_storage_mounts_metadata)
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_cluster_from_name(
         cluster_name: Optional[str]) -> Optional[Dict[str, Any]]:
     if engine:
@@ -895,6 +931,7 @@ def get_cluster_from_name(
     return None
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_clusters() -> List[Dict[str, Any]]:
     if engine:
         stmt = select(clusters).order_by(clusters.c.launched_at.desc())
@@ -934,6 +971,7 @@ def get_clusters() -> List[Dict[str, Any]]:
     return records
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_clusters_from_history() -> List[Dict[str, Any]]:
     if engine:
         ch = cluster_history.alias('ch')
@@ -994,6 +1032,7 @@ def get_clusters_from_history() -> List[Dict[str, Any]]:
     return records
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_cluster_names_start_with(starts_with: str) -> List[str]:
     if engine:
         stmt = select(clusters.c.name).where(clusters.c.name.like(f'{starts_with}%'))
@@ -1005,6 +1044,7 @@ def get_cluster_names_start_with(starts_with: str) -> List[str]:
     return [row[0] for row in rows]
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_cached_enabled_clouds() -> List[clouds.Cloud]:
     def get_env_vars_with_prefix(prefix):
         return {key: value for key, value in os.environ.items() if key.startswith(prefix)}
@@ -1071,6 +1111,7 @@ def set_enabled_clouds(enabled_clouds: List[str]) -> None:
     #     _DB.conn.commit()
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def add_or_update_storage(storage_name: str,
                           storage_handle: 'Storage.StorageMetadata',
                           storage_status: status_lib.StorageStatus):
@@ -1113,6 +1154,7 @@ def add_or_update_storage(storage_name: str,
         _DB.conn.commit()
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def remove_storage(storage_name: str):
     """Removes Storage from Database"""
     if engine:
@@ -1126,6 +1168,7 @@ def remove_storage(storage_name: str):
         _DB.conn.commit()
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def set_storage_status(storage_name: str,
                        status: status_lib.StorageStatus) -> None:
     if engine:
@@ -1149,6 +1192,7 @@ def set_storage_status(storage_name: str,
         raise ValueError(f'Storage {storage_name} not found.')
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_storage_status(storage_name: str) -> Optional[status_lib.StorageStatus]:
     assert storage_name is not None, 'storage_name cannot be None'
     if engine:
@@ -1167,6 +1211,7 @@ def get_storage_status(storage_name: str) -> Optional[status_lib.StorageStatus]:
     return None
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def set_storage_handle(storage_name: str,
                        handle: 'Storage.StorageMetadata') -> None:
     if engine:
@@ -1190,6 +1235,7 @@ def set_storage_handle(storage_name: str,
         raise ValueError(f'Storage{storage_name} not found.')
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_handle_from_storage_name(
         storage_name: Optional[str]) -> Optional['Storage.StorageMetadata']:
     if storage_name is None:
@@ -1215,6 +1261,7 @@ def get_handle_from_storage_name(
     return None
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_glob_storage_name(storage_name: str) -> List[str]:
     assert storage_name is not None, 'storage_name cannot be None'
     if engine:
@@ -1229,6 +1276,7 @@ def get_glob_storage_name(storage_name: str) -> List[str]:
     return [row[0] for row in rows]
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_storage_names_start_with(starts_with: str) -> List[str]:
     if engine:
         cluster_id, cluster_name = _parse_name_values()
@@ -1241,6 +1289,7 @@ def get_storage_names_start_with(starts_with: str) -> List[str]:
     return [row[0] for row in rows]
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def get_storage() -> List[Dict[str, Any]]:
     if engine:
         cluster_id, cluster_name = _parse_name_values()

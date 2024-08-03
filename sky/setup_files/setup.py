@@ -163,6 +163,7 @@ install_requires = [
     'pyyaml > 3.13, != 5.4.*',
     'requests',
     'SQLAlchemy >= 1.4.46',
+    'tenacity ~= 8.5.0',
 ]
 
 local_ray = [
