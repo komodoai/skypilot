@@ -33,14 +33,27 @@ from sqlalchemy.sql import text
 
 _ENABLED_CLOUDS_KEY = 'enabled_clouds'
 
-if os.environ.get('DATABASE_URL', None):
+
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
+def get_komodo_db_resources():
+    if os.environ.get('DATABASE_URL') is None:
+        print("No DATABASE_URL found in the environment, running against local sqlite db")
+        return None, None, None, None, None
     print(f"Running against a Komodo db")
+    # Create SQLAlchemy engine
     engine = create_engine(os.environ['DATABASE_URL'], pool_pre_ping=True)
+    # Create MetaData instance
     metadata = MetaData()
+    # Reflect tables from the database
     clusters = Table('clusters', metadata, autoload_with=engine)
     cluster_history = Table('cluster_history', metadata, autoload_with=engine)
     config = Table('config', metadata, autoload_with=engine)
     storage = Table('storage', metadata, autoload_with=engine)
+
+    return engine, clusters, cluster_history, config, storage
+
+if os.environ.get('DATABASE_URL', None):
+    engine, clusters, cluster_history, config, storage = get_komodo_db_resources()
 else:
     engine = None
     _DB_PATH = os.path.expanduser(f'{SKY_HOME}/state.db')

@@ -22,8 +22,18 @@ if typing.TYPE_CHECKING:
 from sqlalchemy import create_engine, text
 import os
 
-if os.environ.get('DATABASE_URL', None):
+
+@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
+def get_komodo_db_engine():
+    if os.environ.get('DATABASE_URL') is None:
+        print("No DATABASE_URL found in the environment, running against local sqlite db")
+        return None
+    print(f"Running against a Komodo db")
     engine = create_engine(os.environ['DATABASE_URL'], pool_pre_ping=True)
+    return engine
+
+if os.environ.get('DATABASE_URL', None):
+    engine = get_komodo_db_engine()
 else:
     engine = None
 
