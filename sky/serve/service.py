@@ -171,17 +171,11 @@ def _start(service_name: str, tmp_task_yaml: str, job_id: int):
         service_name, constants.INITIAL_VERSION)
     shutil.copy(tmp_task_yaml, task_yaml)
 
-    # Generate load balancer log file name.
-    load_balancer_log_file = os.path.expanduser(
-        serve_utils.generate_remote_load_balancer_log_file_name(service_name))
-
     controller_process = None
-    load_balancer_process = None
     try:
         with filelock.FileLock(
                 os.path.expanduser(constants.PORT_SELECTION_FILE_LOCK_PATH)):
-            controller_port = common_utils.find_free_port(
-                constants.CONTROLLER_PORT_START)
+            controller_port = 8000
             # Start the controller.
             controller_process = multiprocessing.Process(
                 target=controller.run_controller,
@@ -191,20 +185,7 @@ def _start(service_name: str, tmp_task_yaml: str, job_id: int):
                                                     controller_port)
 
             # TODO(tian): Support HTTPS.
-            controller_addr = f'http://localhost:{controller_port}'
-            load_balancer_port = common_utils.find_free_port(
-                constants.LOAD_BALANCER_PORT_START)
-
-            # Start the load balancer.
-            # TODO(tian): Probably we could enable multiple ports specified in
-            # service spec and we could start multiple load balancers.
-            # After that, we will have a mapping from replica port to endpoint.
-            load_balancer_process = multiprocessing.Process(
-                target=ux_utils.RedirectOutputForProcess(
-                    load_balancer.run_load_balancer,
-                    load_balancer_log_file).run,
-                args=(controller_addr, load_balancer_port))
-            load_balancer_process.start()
+            load_balancer_port = 8000
             serve_state.set_service_load_balancer_port(service_name,
                                                        load_balancer_port)
 
@@ -216,8 +197,6 @@ def _start(service_name: str, tmp_task_yaml: str, job_id: int):
             service_name, serve_state.ServiceStatus.SHUTTING_DOWN)
     finally:
         process_to_kill: List[multiprocessing.Process] = []
-        if load_balancer_process is not None:
-            process_to_kill.append(load_balancer_process)
         if controller_process is not None:
             process_to_kill.append(controller_process)
         # Kill load balancer process first since it will raise errors if failed
