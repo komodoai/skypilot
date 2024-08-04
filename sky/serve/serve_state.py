@@ -13,6 +13,8 @@ import colorama
 
 import sky
 from sky.serve import constants
+import sky.skylet
+import sky.skylet.constants
 from sky.utils import db_utils
 
 if typing.TYPE_CHECKING:
@@ -470,7 +472,7 @@ def get_glob_service_names(
 
 
 @retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
-def _sky_instance_to_ssh_info(instance: sky.provision.common.InstanceInfo, role: str):
+def _sky_instance_to_ssh_info(instance: sky.provision.common.InstanceInfo, role: str, docker_user: Optional[str]):
     ip_address = instance.get_feasible_ip()
     ssh_port = instance.ssh_port
 
@@ -479,6 +481,10 @@ def _sky_instance_to_ssh_info(instance: sky.provision.common.InstanceInfo, role:
         'ip_address': ip_address,
         'ssh_port': ssh_port,
     }
+
+    if docker_user:
+        ssh_info['docker_user'] = docker_user
+        ssh_info['docker_port'] = sky.skylet.constants.DEFAULT_DOCKER_PORT
 
     return ssh_info
 
@@ -529,13 +535,13 @@ def add_or_update_replica(service_name: str, replica_id: int,
                 ssh_user = cluster_info.ssh_user
 
                 head_instance = cluster_info.get_head_instance()
-                ssh_info.append(_sky_instance_to_ssh_info(head_instance, "head"))
+                ssh_info.append(_sky_instance_to_ssh_info(head_instance, "head"), handle.docker_user)
 
                 worker_instances = cluster_info.get_worker_instances()
                 for i, worker_instance in enumerate(worker_instances):
                     ssh_info.append(
                         _sky_instance_to_ssh_info(
-                            worker_instance, f"worker-{i+1}"
+                            worker_instance, f"worker-{i+1}", handle.docker_user
                         )
                     )
             else:
@@ -548,13 +554,17 @@ def add_or_update_replica(service_name: str, replica_id: int,
                         role = "head"
                     else:
                         role = f"worker-{i}"
-                    ssh_info.append(
-                        {
-                            "role": role,
-                            "ip_address": ip_address,
-                            "ssh_port": ssh_port,
-                        }
-                    )
+
+                    data = {
+                        "role": role,
+                        "ip_address": ip_address,
+                        "ssh_port": ssh_port,
+                    }
+
+                    if handle.docker_user:
+                        data['docker_user'] = handle.docker_user
+                        data['docker_port'] = sky.skylet.constants.DEFAULT_DOCKER_PORT
+                    ssh_info.append(data)
 
             if not ssh_user:
                 ssh_user = (
