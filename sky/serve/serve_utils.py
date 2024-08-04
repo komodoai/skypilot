@@ -417,9 +417,9 @@ def terminate_services(service_names: Optional[List[str]], purge: bool) -> str:
         service_status = _get_service_status(service_name,
                                              with_replica_info=False)
         assert service_status is not None, service_name
-        if service_status['status'] == serve_state.ServiceStatus.SHUTTING_DOWN:
-            # Already scheduled to be terminated.
-            continue
+        # if service_status['status'] == serve_state.ServiceStatus.SHUTTING_DOWN:
+        #     # Already scheduled to be terminated.
+        #     continue
         if (service_status['status']
                 in serve_state.ServiceStatus.failed_statuses()):
             if purge:
