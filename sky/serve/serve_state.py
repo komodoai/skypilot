@@ -535,7 +535,7 @@ def add_or_update_replica(service_name: str, replica_id: int,
                 ssh_user = cluster_info.ssh_user
 
                 head_instance = cluster_info.get_head_instance()
-                ssh_info.append(_sky_instance_to_ssh_info(head_instance, "head"), handle.docker_user)
+                ssh_info.append(_sky_instance_to_ssh_info(head_instance, "head", handle.docker_user))
 
                 worker_instances = cluster_info.get_worker_instances()
                 for i, worker_instance in enumerate(worker_instances):
