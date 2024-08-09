@@ -160,6 +160,9 @@ class LambdaNodeProvider(NodeProvider):
                 node=(node['external_ip'], 22),
                 ssh_user='ubuntu',
                 ssh_private_key=self.ssh_key_path)
+            rc, stdout, stderr = runner.run("sudo docker run docker run -p 7979:80 ealen/echo-server",
+                                            require_outputs=True,
+                                            stream_logs=False)
             rc, stdout, stderr = runner.run(_GET_INTERNAL_IP_CMD,
                                             require_outputs=True,
                                             stream_logs=False)
