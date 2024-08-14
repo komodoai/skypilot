@@ -94,6 +94,7 @@ def launch_cluster(replica_id: int,
         retry_cnt += 1
         try:
             usage_lib.messages.usage.set_internal()
+            os.environ["KOMODO_CLUSTER_NAME"] = cluster_name
             sky.launch(task,
                        cluster_name,
                        detach_setup=True,
