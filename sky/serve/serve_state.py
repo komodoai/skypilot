@@ -574,6 +574,7 @@ def add_or_update_replica(service_name: str, replica_id: int,
                 komodo_cloud_instance = get_komodo_cloud_instance(cloud, launched_resources.region, launched_resources.instance_type)
                 (instance_type, region) = komodo_cloud_instance[:2]
                 zone = None
+                cloud = "KOMODO"
             else:
                 region = launched_resources.region
                 zone = launched_resources.zone
