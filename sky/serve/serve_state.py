@@ -214,6 +214,9 @@ class ServiceStatus(enum.Enum):
     # No replica
     NO_REPLICA = 'NO_REPLICA'
 
+    # Deleted
+    DELETED = 'DELETED'
+
     @classmethod
     def failed_statuses(cls) -> List['ServiceStatus']:
         return [cls.CONTROLLER_FAILED, cls.FAILED_CLEANUP]
@@ -294,14 +297,33 @@ def add_service(name: str, controller_job_id: int, policy: str,
     return True
 
 
-@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
+# @retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
+# def remove_service(service_name: str) -> None:
+#     """Removes a service from the database."""
+#     service_id, service_name = _parse_name_values(service_name)
+#     with engine.connect() as cursor:
+#         query = text(
+#             f"""\
+#             DELETE FROM services WHERE id='{service_id}'""")
+#         cursor.execute(query)
+#         cursor.commit()
+
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential_jitter(initial=1, max=10),
+    reraise=True,
+)
 def remove_service(service_name: str) -> None:
-    """Removes a service from the database."""
+    """Marks a service as DELETED in the database."""
     service_id, service_name = _parse_name_values(service_name)
     with engine.connect() as cursor:
         query = text(
             f"""\
-            DELETE FROM services WHERE id='{service_id}'""")
+            UPDATE services
+            SET status = 'DELETED'
+            WHERE id = '{service_id}'"""
+        )
         cursor.execute(query)
         cursor.commit()
 
@@ -390,18 +412,21 @@ def _get_service_from_row(row) -> Dict[str, Any]:
 
 
 @retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
-def get_services() -> List[Dict[str, Any]]:
+def get_services(exclude_deleted=True) -> List[Dict[str, Any]]:
     """Get all existing service records."""
     user_id = _get_user_id()
     with engine.connect() as cursor:
-        query = text(
-            f"""\
+        query = f"""\
             SELECT v.max_version, s.id, s.name, s.controller_job_id, s.controller_port, s.load_balancer_port, s.status, s.uptime, s.replica_policy_min_replicas, s.replica_policy_max_replicas, s.requested_resources, s.active_versions FROM services s
             JOIN (
             SELECT service_id, MAX(version) as max_version
             FROM version_specs GROUP BY service_id) v
-            ON s.id=v.service_id WHERE s.user_id='{user_id}'""")
-        rows = cursor.execute(query).fetchall()
+            ON s.id=v.service_id WHERE s.user_id='{user_id}'"""
+        
+        if exclude_deleted:
+            query += " AND s.status != 'DELETED'"
+
+        rows = cursor.execute(text(query)).fetchall()
     records = []
     for row in rows:
         records.append(_get_service_from_row(row))
@@ -459,14 +484,14 @@ def get_glob_service_names(
     with engine.connect() as cursor:
         if service_names is None:
             query = text(
-                f'SELECT id,name FROM services WHERE user_id=\'{user_id}\'')
+                f'SELECT id,name FROM services WHERE user_id=\'{user_id}\' AND status != \'DELETED\'')
             rows = cursor.execute(query).fetchall()
         else:
             rows = []
             for service_name in service_names:
                 service_id, service_name = _parse_name_values(service_name)
                 query = text(
-                    f'SELECT id,name FROM services WHERE user_id=\'{user_id}\' AND id=\'{service_id}\'')
+                    f'SELECT id,name FROM services WHERE user_id=\'{user_id}\' AND id=\'{service_id}\' AND status != \'DELETED\'')
                 rows.extend(cursor.execute(query).fetchall())
     return list({row[0] for row in rows})
 
