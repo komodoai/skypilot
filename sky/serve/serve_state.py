@@ -514,6 +514,37 @@ def _sky_instance_to_ssh_info(instance: sky.provision.common.InstanceInfo, role:
     return ssh_info
 
 
+def get_komodo_cloud_instance(provider_cloud: str, provider_region: str, provider_instance_type: str):
+    try:
+        sql_query = text(
+            """
+            SELECT * FROM instances
+            WHERE provider_instance_type = :instance_type
+              AND provider_region = :region
+              AND provider = :provider
+        """
+        )
+        with engine.connect() as connection:
+            result = connection.execute(
+                sql_query,
+                {
+                    "instance_type": provider_instance_type,
+                    "region": provider_region,
+                    "provider": provider_cloud,
+                },
+            )
+            instance = result.fetchone()
+            if instance is None:
+                print(
+                    f"Could not find instance for provider {provider_cloud}, region {provider_region}, instance type {provider_instance_type}"
+                )
+                return None
+            return instance
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
+
+
 # === Replica functions ===
 @retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
 def add_or_update_replica(service_name: str, replica_id: int,
@@ -538,9 +569,16 @@ def add_or_update_replica(service_name: str, replica_id: int,
             cloud = launched_resources.cloud._REPR.upper() if launched_resources.cloud else None
             if cloud == 'LAMBDA':
                 cloud = 'LAMBDA_LABS'
-            region = launched_resources.region
-            zone = launched_resources.zone
-            instance_type = launched_resources.instance_type
+
+            if os.environ.get("KOMODO_CLOUD", None) == "1":
+                komodo_cloud_instance = get_komodo_cloud_instance(cloud, launched_resources.region, launched_resources.instance_type)
+                (instance_type, region) = komodo_cloud_instance[:2]
+                zone = None
+            else:
+                region = launched_resources.region
+                zone = launched_resources.zone
+                instance_type = launched_resources.instance_type
+
             accelerators = ','.join([f'{acc}:{count}' for acc, count in launched_resources.accelerators.items()]) if launched_resources.accelerators else None
             ports = ','.join(launched_resources.ports)
 
@@ -597,7 +635,7 @@ def add_or_update_replica(service_name: str, replica_id: int,
                     .get("auth", {})
                     .get("ssh_user", None)
                 )
-            
+
             for info in ssh_info:
                 info['ssh_user'] = ssh_user
             ssh_info = json.dumps(ssh_info)
