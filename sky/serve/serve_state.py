@@ -649,7 +649,7 @@ def add_or_update_replica(service_name: str, replica_id: int,
 
         from sky.serve.replica_managers import ReplicaStatusProperty
         rsp = ReplicaStatusProperty.from_dict(d["status_property"])
-        replica_status = rsp.to_replica_status()
+        replica_status = rsp.to_replica_status().value
 
         query = text(f"""
           INSERT INTO replicas
