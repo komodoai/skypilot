@@ -654,7 +654,7 @@ def add_or_update_replica(service_name: str, replica_id: int,
         query = text(f"""
           INSERT INTO replicas
           (service_id, replica_id, status, replica_info, skypilot_cluster_id, cloud, region, zone, instance_type, accelerators, ports, disk_size, spot, ssh_info)
-          VALUES (:service_id, :replica_id, :replica_info, :skypilot_cluster_id, :cloud, :region, :zone, :instance_type, :accelerators, '{ports}'::json, :disk_size, :spot, '{ssh_info}'::json)
+          VALUES (:service_id, :replica_id, :status, :replica_info, :skypilot_cluster_id, :cloud, :region, :zone, :instance_type, :accelerators, '{ports}'::json, :disk_size, :spot, '{ssh_info}'::json)
           ON CONFLICT (service_id, replica_id)
           DO UPDATE SET status=EXCLUDED.status,
                         replica_info=EXCLUDED.replica_info,
