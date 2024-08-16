@@ -788,7 +788,6 @@ class AWS(clouds.Cloud):
             return {
                 '/var/tmp/source_aws_credentials.sh': '/tmp/source_aws_credentials.sh',
                 '~/.aws/credentials': '/tmp/aws_credentials',
-                '~/.komo/api-key': '/tmp/komodo_api_key',
             }
         if self._current_identity_type(
         ) != AWSIdentityType.SHARED_CREDENTIALS_FILE:
