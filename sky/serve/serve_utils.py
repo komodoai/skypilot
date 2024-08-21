@@ -240,7 +240,7 @@ def generate_replica_log_file_name(service_name: str, replica_id: int) -> str:
 
 
 def generate_replica_cluster_name(service_name: str, replica_id: int) -> str:
-    return f'{service_name}-{replica_id}'
+    return f'kr-{service_name}-{replica_id}'
 
 
 def set_service_status_and_active_versions_from_replica(

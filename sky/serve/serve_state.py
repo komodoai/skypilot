@@ -39,57 +39,7 @@ if os.environ.get('DATABASE_URL', None):
 else:
     engine = None
 
-# _DB_PATH = pathlib.Path(constants.SKYSERVE_METADATA_DIR) / 'services.db'
-# _DB_PATH = _DB_PATH.expanduser().absolute()
-# _DB_PATH.parents[0].mkdir(parents=True, exist_ok=True)
-# _DB_PATH = str(_DB_PATH)
 
-
-# def create_table(cursor: 'sqlite3.Cursor', conn: 'sqlite3.Connection') -> None:
-#     """Creates the service and replica tables if they do not exist."""
-
-#     # auto_restart column is deprecated.
-#     cursor.execute("""\
-#         CREATE TABLE IF NOT EXISTS services (
-#         name TEXT PRIMARY KEY,
-#         controller_job_id INTEGER DEFAULT NULL,
-#         controller_port INTEGER DEFAULT NULL,
-#         load_balancer_port INTEGER DEFAULT NULL,
-#         status TEXT,
-#         uptime INTEGER DEFAULT NULL,
-#         policy TEXT DEFAULT NULL,
-#         auto_restart INTEGER DEFAULT NULL,
-#         requested_resources BLOB DEFAULT NULL)""")
-#     cursor.execute("""\
-#         CREATE TABLE IF NOT EXISTS replicas (
-#         service_name TEXT,
-#         replica_id INTEGER,
-#         replica_info BLOB,
-#         PRIMARY KEY (service_name, replica_id))""")
-#     cursor.execute("""\
-#         CREATE TABLE IF NOT EXISTS version_specs (
-#         version INTEGER,
-#         service_name TEXT,
-#         spec BLOB,
-#         PRIMARY KEY (service_name, version))""")
-#     conn.commit()
-
-
-# _DB = db_utils.SQLiteConn(_DB_PATH, create_table)
-# # Backward compatibility.
-# db_utils.add_column_to_table(_DB.cursor, _DB.conn, 'services',
-#                              'requested_resources_str', 'TEXT')
-# # Deprecated: switched to `active_versions` below for the version considered
-# # active by the load balancer. The authscaler/replica_manager version can be
-# # found in the version_specs table.
-# db_utils.add_column_to_table(_DB.cursor, _DB.conn, 'services',
-#                              'current_version',
-#                              f'INTEGER DEFAULT {constants.INITIAL_VERSION}')
-# # The versions that is activated for the service. This is a list of integers in
-# # json format.
-# db_utils.add_column_to_table(_DB.cursor, _DB.conn, 'services',
-#                              'active_versions',
-#                              f'TEXT DEFAULT {json.dumps([])!r}')
 _UNIQUE_CONSTRAINT_FAILED_ERROR_MSG = 'UNIQUE constraint failed: services.name'
 
 
@@ -144,6 +94,8 @@ class ReplicaStatus(enum.Enum):
     # Unknown. This should never happen (used only for unexpected errors).
     UNKNOWN = 'UNKNOWN'
 
+    DELETED = 'DELETED'
+
     @classmethod
     def failed_statuses(cls) -> List['ReplicaStatus']:
         return [
@@ -183,6 +135,7 @@ _REPLICA_STATUS_TO_COLOR = {
     ReplicaStatus.FAILED_CLEANUP: colorama.Fore.RED,
     ReplicaStatus.PREEMPTED: colorama.Fore.MAGENTA,
     ReplicaStatus.UNKNOWN: colorama.Fore.RED,
+    ReplicaStatus.DELETED: colorama.Fore.RED,
 }
 
 
@@ -213,6 +166,9 @@ class ServiceStatus(enum.Enum):
 
     # No replica
     NO_REPLICA = 'NO_REPLICA'
+
+    # Deleted
+    DELETED = 'DELETED'
 
     @classmethod
     def failed_statuses(cls) -> List['ServiceStatus']:
@@ -294,14 +250,21 @@ def add_service(name: str, controller_job_id: int, policy: str,
     return True
 
 
-@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential_jitter(initial=1, max=10),
+    reraise=True,
+)
 def remove_service(service_name: str) -> None:
-    """Removes a service from the database."""
+    """Marks a service as DELETED in the database."""
     service_id, service_name = _parse_name_values(service_name)
     with engine.connect() as cursor:
         query = text(
             f"""\
-            DELETE FROM services WHERE id='{service_id}'""")
+            UPDATE services
+            SET status = 'DELETED'
+            WHERE id = '{service_id}'"""
+        )
         cursor.execute(query)
         cursor.commit()
 
@@ -390,18 +353,21 @@ def _get_service_from_row(row) -> Dict[str, Any]:
 
 
 @retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
-def get_services() -> List[Dict[str, Any]]:
+def get_services(exclude_deleted=True) -> List[Dict[str, Any]]:
     """Get all existing service records."""
     user_id = _get_user_id()
     with engine.connect() as cursor:
-        query = text(
-            f"""\
+        query = f"""\
             SELECT v.max_version, s.id, s.name, s.controller_job_id, s.controller_port, s.load_balancer_port, s.status, s.uptime, s.replica_policy_min_replicas, s.replica_policy_max_replicas, s.requested_resources, s.active_versions FROM services s
             JOIN (
             SELECT service_id, MAX(version) as max_version
             FROM version_specs GROUP BY service_id) v
-            ON s.id=v.service_id WHERE s.user_id='{user_id}'""")
-        rows = cursor.execute(query).fetchall()
+            ON s.id=v.service_id WHERE s.user_id='{user_id}'"""
+        
+        if exclude_deleted:
+            query += " AND s.status != 'DELETED'"
+
+        rows = cursor.execute(text(query)).fetchall()
     records = []
     for row in rows:
         records.append(_get_service_from_row(row))
@@ -459,14 +425,14 @@ def get_glob_service_names(
     with engine.connect() as cursor:
         if service_names is None:
             query = text(
-                f'SELECT id,name FROM services WHERE user_id=\'{user_id}\'')
+                f'SELECT id,name FROM services WHERE user_id=\'{user_id}\' AND status != \'DELETED\'')
             rows = cursor.execute(query).fetchall()
         else:
             rows = []
             for service_name in service_names:
                 service_id, service_name = _parse_name_values(service_name)
                 query = text(
-                    f'SELECT id,name FROM services WHERE user_id=\'{user_id}\' AND id=\'{service_id}\'')
+                    f'SELECT id,name FROM services WHERE user_id=\'{user_id}\' AND id=\'{service_id}\' AND status != \'DELETED\'')
                 rows.extend(cursor.execute(query).fetchall())
     return list({row[0] for row in rows})
 
@@ -487,6 +453,37 @@ def _sky_instance_to_ssh_info(instance: sky.provision.common.InstanceInfo, role:
         ssh_info['docker_port'] = sky.skylet.constants.DEFAULT_DOCKER_PORT
 
     return ssh_info
+
+
+def get_komodo_cloud_instance(provider_cloud: str, provider_region: str, provider_instance_type: str):
+    try:
+        sql_query = text(
+            """
+            SELECT * FROM instances
+            WHERE provider_instance_type = :instance_type
+              AND provider_region = :region
+              AND provider = :provider
+        """
+        )
+        with engine.connect() as connection:
+            result = connection.execute(
+                sql_query,
+                {
+                    "instance_type": provider_instance_type,
+                    "region": provider_region,
+                    "provider": provider_cloud,
+                },
+            )
+            instance = result.fetchone()
+            if instance is None:
+                print(
+                    f"Could not find instance for provider {provider_cloud}, region {provider_region}, instance type {provider_instance_type}"
+                )
+                return None
+            return instance
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
 
 
 # === Replica functions ===
@@ -513,9 +510,17 @@ def add_or_update_replica(service_name: str, replica_id: int,
             cloud = launched_resources.cloud._REPR.upper() if launched_resources.cloud else None
             if cloud == 'LAMBDA':
                 cloud = 'LAMBDA_LABS'
-            region = launched_resources.region
-            zone = launched_resources.zone
-            instance_type = launched_resources.instance_type
+
+            if os.environ.get("KOMODO_CLOUD", None) == "1":
+                komodo_cloud_instance = get_komodo_cloud_instance(cloud, launched_resources.region, launched_resources.instance_type)
+                (instance_type, region) = komodo_cloud_instance[:2]
+                zone = None
+                cloud = "KOMODO"
+            else:
+                region = launched_resources.region
+                zone = launched_resources.zone
+                instance_type = launched_resources.instance_type
+
             accelerators = ','.join([f'{acc}:{count}' for acc, count in launched_resources.accelerators.items()]) if launched_resources.accelerators else None
             ports = ','.join(launched_resources.ports)
 
@@ -572,7 +577,7 @@ def add_or_update_replica(service_name: str, replica_id: int,
                     .get("auth", {})
                     .get("ssh_user", None)
                 )
-            
+
             for info in ssh_info:
                 info['ssh_user'] = ssh_user
             ssh_info = json.dumps(ssh_info)
@@ -580,12 +585,17 @@ def add_or_update_replica(service_name: str, replica_id: int,
         d.update({'status_property': d['status_property'].to_dict()})
         ri = json.dumps(d)
 
+        from sky.serve.replica_managers import ReplicaStatusProperty
+        rsp = ReplicaStatusProperty.from_dict(d["status_property"])
+        replica_status = rsp.to_replica_status().value
+
         query = text(f"""
           INSERT INTO replicas
-          (service_id, replica_id, replica_info, skypilot_cluster_id, cloud, region, zone, instance_type, accelerators, ports, disk_size, spot, ssh_info)
-          VALUES (:service_id, :replica_id, :replica_info, :skypilot_cluster_id, :cloud, :region, :zone, :instance_type, :accelerators, '{ports}'::json, :disk_size, :spot, '{ssh_info}'::json)
+          (service_id, replica_id, status, replica_info, skypilot_cluster_id, cloud, region, zone, instance_type, accelerators, ports, disk_size, spot, ssh_info)
+          VALUES (:service_id, :replica_id, :status, :replica_info, :skypilot_cluster_id, :cloud, :region, :zone, :instance_type, :accelerators, '{ports}'::json, :disk_size, :spot, '{ssh_info}'::json)
           ON CONFLICT (service_id, replica_id)
-          DO UPDATE SET replica_info=EXCLUDED.replica_info,
+          DO UPDATE SET status=EXCLUDED.status,
+                        replica_info=EXCLUDED.replica_info,
                         skypilot_cluster_id=EXCLUDED.skypilot_cluster_id,
                         cloud=EXCLUDED.cloud,
                         region=EXCLUDED.region,
@@ -601,6 +611,7 @@ def add_or_update_replica(service_name: str, replica_id: int,
             {
                 "service_id": service_id,
                 "replica_id": replica_id,
+                "status": replica_status,
                 "replica_info": ri,
                 "skypilot_cluster_id": replica_info.cluster_name,
                 "cloud": cloud,
@@ -615,14 +626,20 @@ def add_or_update_replica(service_name: str, replica_id: int,
         cursor.commit()
 
 
-@retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential_jitter(initial=1, max=10),
+    reraise=True,
+)
 def remove_replica(service_name: str, replica_id: int) -> None:
     """Removes a replica from the database."""
     service_id, service_name = _parse_name_values(service_name)
     with engine.connect() as cursor:
         query = text(
             f"""\
-            DELETE FROM replicas WHERE service_id='{service_id}' AND replica_id='{replica_id}'""")
+            UPDATE replicas SET status='DELETED' 
+            WHERE service_id='{service_id}' AND replica_id='{replica_id}'"""
+        )
         cursor.execute(query)
         cursor.commit()
 
@@ -639,7 +656,7 @@ def get_replica_info_from_id(
             f"""\
             SELECT replica_info FROM replicas
             WHERE service_id='{service_id}'
-            AND replica_id='{replica_id}'""")
+            AND replica_id='{replica_id}' AND status != 'DELETED'""")
         rows = cursor.execute(query).fetchall()
     for row in rows:
         return ReplicaInfo(
@@ -666,7 +683,7 @@ def get_replica_infos(
         query = text(
             f"""\
             SELECT replica_info FROM replicas
-            WHERE service_id='{service_id}'""")
+            WHERE service_id='{service_id}' and status != 'DELETED'""")
         rows = cursor.execute(query).fetchall()
     return [ReplicaInfo(
             row[0]['replica_id'],
