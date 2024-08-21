@@ -39,57 +39,7 @@ if os.environ.get('DATABASE_URL', None):
 else:
     engine = None
 
-# _DB_PATH = pathlib.Path(constants.SKYSERVE_METADATA_DIR) / 'services.db'
-# _DB_PATH = _DB_PATH.expanduser().absolute()
-# _DB_PATH.parents[0].mkdir(parents=True, exist_ok=True)
-# _DB_PATH = str(_DB_PATH)
 
-
-# def create_table(cursor: 'sqlite3.Cursor', conn: 'sqlite3.Connection') -> None:
-#     """Creates the service and replica tables if they do not exist."""
-
-#     # auto_restart column is deprecated.
-#     cursor.execute("""\
-#         CREATE TABLE IF NOT EXISTS services (
-#         name TEXT PRIMARY KEY,
-#         controller_job_id INTEGER DEFAULT NULL,
-#         controller_port INTEGER DEFAULT NULL,
-#         load_balancer_port INTEGER DEFAULT NULL,
-#         status TEXT,
-#         uptime INTEGER DEFAULT NULL,
-#         policy TEXT DEFAULT NULL,
-#         auto_restart INTEGER DEFAULT NULL,
-#         requested_resources BLOB DEFAULT NULL)""")
-#     cursor.execute("""\
-#         CREATE TABLE IF NOT EXISTS replicas (
-#         service_name TEXT,
-#         replica_id INTEGER,
-#         replica_info BLOB,
-#         PRIMARY KEY (service_name, replica_id))""")
-#     cursor.execute("""\
-#         CREATE TABLE IF NOT EXISTS version_specs (
-#         version INTEGER,
-#         service_name TEXT,
-#         spec BLOB,
-#         PRIMARY KEY (service_name, version))""")
-#     conn.commit()
-
-
-# _DB = db_utils.SQLiteConn(_DB_PATH, create_table)
-# # Backward compatibility.
-# db_utils.add_column_to_table(_DB.cursor, _DB.conn, 'services',
-#                              'requested_resources_str', 'TEXT')
-# # Deprecated: switched to `active_versions` below for the version considered
-# # active by the load balancer. The authscaler/replica_manager version can be
-# # found in the version_specs table.
-# db_utils.add_column_to_table(_DB.cursor, _DB.conn, 'services',
-#                              'current_version',
-#                              f'INTEGER DEFAULT {constants.INITIAL_VERSION}')
-# # The versions that is activated for the service. This is a list of integers in
-# # json format.
-# db_utils.add_column_to_table(_DB.cursor, _DB.conn, 'services',
-#                              'active_versions',
-#                              f'TEXT DEFAULT {json.dumps([])!r}')
 _UNIQUE_CONSTRAINT_FAILED_ERROR_MSG = 'UNIQUE constraint failed: services.name'
 
 
@@ -298,18 +248,6 @@ def add_service(name: str, controller_job_id: int, policy: str,
             raise RuntimeError('Unexpected database error') from e
         return False
     return True
-
-
-# @retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
-# def remove_service(service_name: str) -> None:
-#     """Removes a service from the database."""
-#     service_id, service_name = _parse_name_values(service_name)
-#     with engine.connect() as cursor:
-#         query = text(
-#             f"""\
-#             DELETE FROM services WHERE id='{service_id}'""")
-#         cursor.execute(query)
-#         cursor.commit()
 
 
 @retry(
@@ -686,18 +624,6 @@ def add_or_update_replica(service_name: str, replica_id: int,
             },
         )
         cursor.commit()
-
-
-# @retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10), reraise=True)
-# def remove_replica(service_name: str, replica_id: int) -> None:
-#     """Removes a replica from the database."""
-#     service_id, service_name = _parse_name_values(service_name)
-#     with engine.connect() as cursor:
-#         query = text(
-#             f"""\
-#             DELETE FROM replicas WHERE service_id='{service_id}' AND replica_id='{replica_id}'""")
-#         cursor.execute(query)
-#         cursor.commit()
 
 
 @retry(
