@@ -256,10 +256,6 @@ class Lambda(clouds.Cloud):
 
     def get_credential_file_mounts(self) -> Dict[str, str]:
         return {}
-        # return {
-        #     f'~/.lambda_cloud/{filename}': f'~/.lambda_cloud/{filename}'
-        #     for filename in _CREDENTIAL_FILES
-        # }
 
     @classmethod
     def get_current_user_identity(cls) -> Optional[List[str]]:
