@@ -10,6 +10,7 @@ import aiohttp
 import fastapi
 import httpx
 from starlette import background
+from starlette.middleware.cors import CORSMiddleware
 import uvicorn
 
 from sky import sky_logging
@@ -21,6 +22,7 @@ from sky.utils import common_utils
 logger = sky_logging.init_logger(__name__)
 
 KOMODO_SERVICE_ID = os.getenv("KOMODO_SERVICE_ID", None)
+BACKEND_CORS_ORIGINS = os.getenv("BACKEND_CORS_ORIGINS", None)
 
 
 class SkyServeLoadBalancer:
@@ -39,6 +41,7 @@ class SkyServeLoadBalancer:
             load_balancer_port: The port where the load balancer listens to.
         """
         self._app = fastapi.FastAPI()
+        self._setup_cors_middleware(self._app)
         self._controller_url: str = controller_url
         self._load_balancer_port: int = load_balancer_port
         self._load_balancing_policy: lb_policies.LoadBalancingPolicy = (
@@ -58,6 +61,27 @@ class SkyServeLoadBalancer:
         # We need this lock to avoid getting from the client pool while
         # updating it from _sync_with_controller.
         self._client_pool_lock: threading.Lock = threading.Lock()
+
+
+    def _setup_cors_middleware(self, app):
+        if BACKEND_CORS_ORIGINS:
+            app.add_middleware(
+                CORSMiddleware,
+                allow_origins=[
+                    str(origin).rstrip("/") for origin in BACKEND_CORS_ORIGINS
+                ],
+                allow_credentials=True,
+                allow_methods=["*"],
+                expose_headers=["Content-Range", "Range"],
+                allow_headers=[
+                    "Authorization",
+                    "Range",
+                    "Content-Range",
+                    "Cache-Control",
+                    "Pragma",
+                    "Expires",
+                ],
+            )
 
     async def _sync_with_controller(self):
         """Sync with controller periodically.
