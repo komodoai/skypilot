@@ -254,7 +254,8 @@ def open_ports(
     ports: List[str],
     provider_config: Optional[Dict[str, Any]] = None,
 ) -> None:
-    raise NotImplementedError()
+    # Do nothing because our Lambda ports are open by default.
+    del cluster_name_on_cloud, ports, provider_config  # Unused.
 
 
 def cleanup_ports(
