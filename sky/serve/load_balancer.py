@@ -10,6 +10,9 @@ import aiohttp
 import fastapi
 import httpx
 from starlette import background
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.middleware.cors import CORSMiddleware
 import uvicorn
 
 from sky import sky_logging
@@ -21,6 +24,19 @@ from sky.utils import common_utils
 logger = sky_logging.init_logger(__name__)
 
 KOMODO_SERVICE_ID = os.getenv("KOMODO_SERVICE_ID", None)
+BACKEND_CORS_ORIGINS = os.getenv("BACKEND_CORS_ORIGINS", None)
+
+
+class CORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        origin = request.headers.get("Origin")
+        if origin:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, Origin, User-Agent"
+        return response
 
 
 class SkyServeLoadBalancer:
@@ -39,6 +55,7 @@ class SkyServeLoadBalancer:
             load_balancer_port: The port where the load balancer listens to.
         """
         self._app = fastapi.FastAPI()
+        self._app.add_middleware(CORSMiddleware)
         self._controller_url: str = controller_url
         self._load_balancer_port: int = load_balancer_port
         self._load_balancing_policy: lb_policies.LoadBalancingPolicy = (
@@ -58,6 +75,27 @@ class SkyServeLoadBalancer:
         # We need this lock to avoid getting from the client pool while
         # updating it from _sync_with_controller.
         self._client_pool_lock: threading.Lock = threading.Lock()
+
+
+    def _setup_cors_middleware(self, app):
+        if BACKEND_CORS_ORIGINS:
+            app.add_middleware(
+                CORSMiddleware,
+                allow_origins=[
+                    str(origin).rstrip("/") for origin in BACKEND_CORS_ORIGINS
+                ],
+                allow_credentials=True,
+                allow_methods=["*"],
+                expose_headers=["Content-Range", "Range"],
+                allow_headers=[
+                    "Authorization",
+                    "Range",
+                    "Content-Range",
+                    "Cache-Control",
+                    "Pragma",
+                    "Expires",
+                ],
+            )
 
     async def _sync_with_controller(self):
         """Sync with controller periodically.
@@ -209,10 +247,32 @@ class SkyServeLoadBalancer:
     async def _health_check_handler(self):
         return fastapi.responses.Response(status_code=200)
 
+
+    async def _handle_options_request(self, request: fastapi.Request) -> fastapi.responses.Response:
+        """Handle OPTIONS requests directly in the load balancer."""
+        headers = {
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": ", ".join([
+                "Authorization", "Content-Type", "Accept", "Origin",
+                "User-Agent", "DNT", "Cache-Control", "X-Mx-ReqToken",
+                "Keep-Alive", "X-Requested-With", "If-Modified-Since",
+                "X-CSRF-Token"
+            ]),
+        }
+        if BACKEND_CORS_ORIGINS:
+            origin = request.headers.get("Origin")
+            if origin in BACKEND_CORS_ORIGINS:
+                headers["Access-Control-Allow-Origin"] = origin
+
+        return fastapi.responses.Response(status_code=204, headers=headers)
+
     def run(self):
         self._app.add_api_route('/komodo-health-check',
                                 self._health_check_handler,
                                 methods=['GET'])
+        self._app.add_api_route('/{path:path}',
+                                self._handle_options_request,
+                                methods=['OPTIONS'])
         self._app.add_api_route('/{path:path}',
                                 self._proxy_with_retries,
                                 methods=['GET', 'POST', 'PUT', 'DELETE'])
