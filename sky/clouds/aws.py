@@ -212,7 +212,7 @@ class AWS(clouds.Cloud):
 
     @classmethod
     def _get_default_ami(cls, region_name: str, instance_type: str) -> str:
-        return "ami-095b82725a76b2a87"
+        return "ami-05fc5e335a4e48788"
         acc = cls.get_accelerators_from_instance_type(instance_type)
         image_id = service_catalog.get_image_id_from_tag(
             'skypilot:gpu-ubuntu-2004', region_name, clouds='aws')
