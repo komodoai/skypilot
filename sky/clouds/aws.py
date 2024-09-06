@@ -63,23 +63,23 @@ DEFAULT_SECURITY_GROUP_NAME = f'sky-sg-{common_utils.user_and_hostname_hash()}'
 USER_PORTS_SECURITY_GROUP_NAME = 'sky-sg-{}'
 
 KOMODO_SKYPILOT_AMIS = {
-    'ap-northeast-1': 'ami-01fd2743ebe2e5d29',
-    'ap-northeast-2': 'ami-03faad73854d4dc4c',
-    'ap-northeast-3': 'ami-0e06ad065d2cb70e0',
-    'ap-south-1': 'ami-06aa43a5dff6b7ff0',
-    'ap-southeast-1': 'ami-067de2aa1a6fba927',
-    'ap-southeast-2': 'ami-0bdd4add0a958d6e1',
-    'ca-central-1': 'ami-0880d13252fad1b67',
-    'eu-central-1': 'ami-04b5edd2ed7ef149c',
-    'eu-north-1': 'ami-05bc11fa9a8d72614',
-    'eu-west-1': 'ami-03120c7b632ac91b1',
-    'eu-west-2': 'ami-0642960ba679977ce',
-    'eu-west-3': 'ami-020d44dff622b601c',
-    'sa-east-1': 'ami-03aeb59d71a6bb1ca',
-    'us-east-1': 'ami-0dbe09b43c2081684',
-    'us-east-2': 'ami-00e8d1a1972fca577',
-    'us-west-1': 'ami-07c19f3180452e458',
-    'us-west-2': 'ami-015749b447aa499ae'
+    'ap-northeast-1': 'ami-08e474abd0ea9468e',
+    'ap-northeast-2': 'ami-0459c3d3b5ca08526',
+    'ap-northeast-3': 'ami-0f5db5dda71e7afac',
+    'ap-south-1': 'ami-010df2ee382155c64',
+    'ap-southeast-1': 'ami-0f68e0601fcf99da7',
+    'ap-southeast-2': 'ami-0d990f3d6439aaf5e',
+    'ca-central-1': 'ami-0cbf72c0f459dd0bf',
+    'eu-central-1': 'ami-0f67a32ff91e69f0b',
+    'eu-north-1': 'ami-08c1c7c02dd965883',
+    'eu-west-1': 'ami-08331fb9c6c96a543',
+    'eu-west-2': 'ami-0397b2b9f12f43296',
+    'eu-west-3': 'ami-0d25903e9970028d8',
+    'sa-east-1': 'ami-0a0e17e2b3eb9c8ef',
+    'us-east-1': 'ami-01f6b7a80953c9e2c',
+    'us-east-2': 'ami-07207fe079615ee75',
+    'us-west-1': 'ami-0b6d0d351aec63b9b',
+    'us-west-2': 'ami-0126b2fbe899200fe',
 }
 
 
