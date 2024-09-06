@@ -62,6 +62,26 @@ DEFAULT_SECURITY_GROUP_NAME = f'sky-sg-{common_utils.user_and_hostname_hash()}'
 # Security group to use when user specified ports in their resources.
 USER_PORTS_SECURITY_GROUP_NAME = 'sky-sg-{}'
 
+KOMODO_SKYPILOT_AMIS = {
+    'ap-northeast-1': 'ami-08e474abd0ea9468e',
+    'ap-northeast-2': 'ami-0459c3d3b5ca08526',
+    'ap-northeast-3': 'ami-0f5db5dda71e7afac',
+    'ap-south-1': 'ami-010df2ee382155c64',
+    'ap-southeast-1': 'ami-0f68e0601fcf99da7',
+    'ap-southeast-2': 'ami-0d990f3d6439aaf5e',
+    'ca-central-1': 'ami-0cbf72c0f459dd0bf',
+    'eu-central-1': 'ami-0f67a32ff91e69f0b',
+    'eu-north-1': 'ami-08c1c7c02dd965883',
+    'eu-west-1': 'ami-08331fb9c6c96a543',
+    'eu-west-2': 'ami-0397b2b9f12f43296',
+    'eu-west-3': 'ami-0d25903e9970028d8',
+    'sa-east-1': 'ami-0a0e17e2b3eb9c8ef',
+    'us-east-1': 'ami-01f6b7a80953c9e2c',
+    'us-east-2': 'ami-07207fe079615ee75',
+    'us-west-1': 'ami-0b6d0d351aec63b9b',
+    'us-west-2': 'ami-0126b2fbe899200fe',
+}
+
 
 class AWSIdentityType(enum.Enum):
     """AWS identity type.
@@ -212,6 +232,11 @@ class AWS(clouds.Cloud):
 
     @classmethod
     def _get_default_ami(cls, region_name: str, instance_type: str) -> str:
+        komodo_ami = KOMODO_SKYPILOT_AMIS.get(region_name, None)
+        if komodo_ami:
+            logger.info(f"Using Komodo AMI for region {region_name}: {komodo_ami}")
+            return komodo_ami
+
         acc = cls.get_accelerators_from_instance_type(instance_type)
         image_id = service_catalog.get_image_id_from_tag(
             'skypilot:gpu-ubuntu-2004', region_name, clouds='aws')
